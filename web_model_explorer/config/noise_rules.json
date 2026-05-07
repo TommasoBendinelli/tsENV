@@ -1,0 +1,4 @@
+{
+  "rolling_window_points": 11,
+  "sigma_floor_ratio": 0.0001
+}

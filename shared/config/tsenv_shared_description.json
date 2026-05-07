@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "textual_description": {
+    "none": ""
+  },
+  "ordered_field_agent_prompt": [
+    ["sample_source", " "],
+    ["environment_description", "\n\n"],
+    ["observed_columns", "\n\n"],
+    ["intervention_semantics", "\n\n"],
+    ["label_space", "\n\n"],
+    ["no_change_guidance", "\n\n"],
+    ["task_artifact", "\n"],
+    ["prediction_format", "\n\n"],
+    ["fewshot_context", "\n\n"],
+    ["mode_specific_requirements", "\n\n"],
+    ["evaluation", "\n\n"],
+    ["runtime_constraints", ""]
+  ],
+  "intervention_semantics": "For each simulation, either no parameter changes occur, or exactly one parameter among the allowed labels changes during the observed simulation interval.\nIf a parameter changes, it undergoes a single instantaneous step change at an unknown time during the observed interval.",
+  "no_change_guidance": "Use \"no parameter change\" if there is no evidence in the data of a parameter change during the observed interval.",
+  "task_artifact": {
+    "direct": "Task:\nCreate a file named results.json in the current working directory.",
+    "code": "Task:\nCreate a Python script named rule.py in the current working directory.\nThe script must define exactly this function:\ndef predict(df) -> list[str]:",
+    "open-ended": "Task:\nCreate a Python script named rule.py in the current working directory.\nThe script must define exactly this function:\ndef predict(df) -> list[str]:"
+  },
+  "prediction_format": {
+    "direct": "For each file in test_samples/, return a ranked list of labels.\nThe first label is your final top-1 prediction and should be the single label you think is most likely correct.\nYou may include additional labels only when the evidence is genuinely ambiguous.\nAdditional labels are treated as lower-confidence alternatives.\nThe output must be valid JSON with exactly this structure:\n{\n\n  \"<filename_1>\": [\"<top_1_label>\"],\n  \"<filename_2>\": [\"<top_1_label>\", \"<optional_lower_confidence_label>\"]\n\n}",
+    "code": "The input df is a pandas DataFrame containing one sample with columns col1, col2, col3, and col4.\nThe function will be called on samples inside test_samples/ and on additional held-out samples with the same schema and label set.\nFor each dataframe, predict(df) must return a ranked list of labels. The first label is the final top-1 prediction and should be the single label most likely to be correct. Additional labels are optional lower-confidence alternatives and should only be included when the evidence is genuinely ambiguous.",
+    "open-ended": "The input df is a pandas DataFrame containing one sample with columns col1, col2, col3, and col4.\nThe function will be called on samples inside test_samples/ and on additional held-out samples with the same schema and label set.\nFor each dataframe, predict(df) must return a ranked list of labels. The first label is the final top-1 prediction and should be the single label most likely to be correct. Additional labels are optional lower-confidence alternatives and should only be included when the evidence is genuinely ambiguous."
+  },
+  "fewshot_context": {
+    "direct": "To help with this task, you can use the labeled `train_samples/` directory. The corresponding labels are available in `train_labels.json` file.",
+    "code": "To help with this task, you can use the labeled train_samples/ directory while developing rule.py. The corresponding labels are available in train_labels.json.",
+    "open-ended": "To help with this task, you can use the labeled train_samples/ directory while developing rule.py. The corresponding labels are available in train_labels.json."
+  },
+  "mode_specific_requirements": {
+    "direct": "Requirements:\n- Include one entry for every Parquet file in test_samples/.\n- Every returned label must exactly match one of the allowed labels.\n- The order of labels matters: the first label is the top-1 prediction.\n- Do not include duplicate labels for a sample.\n- Do not return all labels unless the evidence is genuinely ambiguous across all labels.",
+    "code": "Requirements for predict(df):\n- Return a Python list of strings.\n- Every returned label must exactly match one of the allowed labels.\n- The first returned label is the top-1 prediction.\n- Do not include duplicate labels.\n- Do not return all labels unless the evidence is genuinely ambiguous across all labels.\n{code_file_dependency_requirement}\n- The final rule.py must be able to run on a dataframe alone.",
+    "open-ended": "Requirements for predict(df):\n- Return a Python list of strings.\n- Every returned label must exactly match one of the allowed labels.\n- The first returned label is the top-1 prediction.\n- Do not include duplicate labels.\n- Do not return all labels unless the evidence is genuinely ambiguous across all labels.\n{code_file_dependency_requirement}\n- The final rule.py must be able to run on a dataframe alone."
+  },
+  "evaluation": "Evaluation:\nThe primary evaluation metric is top-1 accuracy: the first label in each returned list is compared with the hidden correct label.\nA secondary shortlist score may also be reported. For a returned list of length m, the sample receives score 1/m if the hidden correct label appears anywhere in the list, and 0 otherwise. Therefore, unnecessary extra labels reduce the secondary score.",
+  "runtime_constraints": "Additional requirements:\n- If you create intermediate files, images, scripts, or notes while solving the task, create them in the current working directory.\n- Internet access is disabled."
+}

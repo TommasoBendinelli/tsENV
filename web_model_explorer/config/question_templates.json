@@ -1,0 +1,15 @@
+{
+  "Classification": {
+    "title": "question_0",
+    "text": "In this simulation, exactly one parameter from {multiple_choices} was changed at an unknown time.\n(1) At what time does the change first become detectable in the data?\n(2) Which parameter was changed?",
+    "choices": "",
+    "signal_text": ""
+  },
+  "Detection": {
+    "title": "",
+    "text": "During this run, something is changed mid simulation. Can you tell me the exact time?",
+    "choices": "",
+    "signal_text": ""
+  }
+}
+

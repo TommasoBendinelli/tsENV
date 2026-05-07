@@ -1,0 +1,1297 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "arrayShape": "cr:arrayShape",
+    "citeAs": "cr:citeAs",
+    "column": "cr:column",
+    "conformsTo": "dct:conformsTo",
+    "containedIn": "cr:containedIn",
+    "cr": "http://mlcommons.org/croissant/",
+    "rai": "http://mlcommons.org/croissant/RAI/",
+    "data": {
+      "@id": "cr:data",
+      "@type": "@json"
+    },
+    "dataType": {
+      "@id": "cr:dataType",
+      "@type": "@vocab"
+    },
+    "dct": "http://purl.org/dc/terms/",
+    "equivalentProperty": "cr:equivalentProperty",
+    "examples": {
+      "@id": "cr:examples",
+      "@type": "@json"
+    },
+    "extract": "cr:extract",
+    "field": "cr:field",
+    "fileProperty": "cr:fileProperty",
+    "fileObject": "cr:fileObject",
+    "fileSet": "cr:fileSet",
+    "format": "cr:format",
+    "includes": "cr:includes",
+    "isArray": "cr:isArray",
+    "isLiveDataset": "cr:isLiveDataset",
+    "jsonPath": "cr:jsonPath",
+    "key": "cr:key",
+    "md5": "cr:md5",
+    "parentField": "cr:parentField",
+    "path": "cr:path",
+    "prov": "http://www.w3.org/ns/prov#",
+    "recordSet": "cr:recordSet",
+    "references": "cr:references",
+    "regex": "cr:regex",
+    "repeated": "cr:repeated",
+    "replace": "cr:replace",
+    "samplingRate": "cr:samplingRate",
+    "sc": "https://schema.org/",
+    "separator": "cr:separator",
+    "source": "cr:source",
+    "subField": "cr:subField",
+    "transform": "cr:transform"
+  },
+  "@type": "sc:Dataset",
+  "name": "tsENV",
+  "description": "tsENV environment: a structured benchmark dataset of simulated time-series from dynamical systems with controlled interventions on system parameters. Each sample represents either a baseline or an intervention where a single parameter is changed, enabling evaluation of models that identify the intervened parameter from observed trajectories. In the BallDrop environment, the system models a bouncing ball under gravity with parameters such as mass, drag coefficient, and restitution determining the resulting motion trajectories. Label space for BallDrop: 'coefficient of restitution', 'mass', 'drag coefficient', 'gravity acceleration', 'no parameter change' \u2014 i.e. the names of the intervened parameters plus the class 'no parameter change'. In the DampedMassBetweenWalls environment, the system models a mass moving between two rigid boundaries with damping, where parameters such as mass, damping coefficient, and boundary stiffness determine the resulting motion trajectories. Label space for DampedMassBetweenWalls: 'coefficient of restitution of the left wall', 'coefficient of restitution of the right wall', 'coefficient of viscous damping', 'inclination angle of the rail', 'weight of the mass', 'no parameter change' \u2014 i.e. the names of the intervened parameters plus the class 'no parameter change'. In the InclinedPlane environment, the system models an object sliding along an inclined surface under gravity, where parameters such as inclination angle, friction coefficient, and mass determine the resulting motion trajectories. Label space for InclinedPlane: 'Coulomb friction coefficient', 'breakaway friction coefficient', 'gravity acceleration', 'plane inclination angle', 'no parameter change' \u2014 i.e. the names of the intervened parameters plus the class 'no parameter change'.",
+  "conformsTo": "http://mlcommons.org/croissant/1.1",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "url": "https://github.com/TommasoBendinelli/tsENV",
+  "version": "1.0.0",
+  "datePublished": "2026-05-06",
+  "citeAs": "Bendinelli, T. tsENV: simulated time-series interventions across all environments. https://github.com/TommasoBendinelli/tsENV",
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "repo",
+      "name": "repo",
+      "description": "tsENV git repository containing all environment data.",
+      "contentUrl": "https://github.com/TommasoBendinelli/tsENV",
+      "encodingFormat": "git+https",
+      "sha256": "https://github.com/mlcommons/croissant/issues/80"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "BallDrop/model-record",
+      "name": "model_record.json",
+      "description": "Per-run metadata: parameters_hash, run_type, class label, status, timestamp.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/BallDrop/model_record.json",
+      "encodingFormat": "application/json",
+      "sha256": "8725c36e99d543b76530ed3d4cb88405859e87a5f723e7b81fbcc245064e5fb1"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "BallDrop/sample-manifest",
+      "name": "sample_manifest.json",
+      "description": "Train/test split assignment per question variant.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/BallDrop/sample_manifest.json",
+      "encodingFormat": "application/json",
+      "sha256": "540c3e48e6c391cbaac60ba0de59ce8f47c5c5120af53e7d88f277a100d183ee"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "BallDrop/questions-file",
+      "name": "questions.json",
+      "description": "Question definitions, prompts, label space, and evaluation rules.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/BallDrop/questions.json",
+      "encodingFormat": "application/json",
+      "sha256": "ff7c88a09b45fa726c5d78fa4c72c33b1af2055d11c4cf44a2e97bde8539b093"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "BallDrop/noise-adder",
+      "name": "noise_adder.py",
+      "description": "Model-specific script for adding low/high noise profiles and reporting noise analysis.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/BallDrop/noise_adder.py",
+      "encodingFormat": "text/x-python",
+      "sha256": "afd3cc361460bbba4d414df78387b8be39558e7113f96d19181a573d4c6d55f8"
+    },
+    {
+      "@type": "cr:FileSet",
+      "@id": "BallDrop/parquet-files",
+      "name": "parquet-files",
+      "description": "One Parquet file per simulation run; filename stem is the run UUID.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "encodingFormat": "application/vnd.apache.parquet",
+      "includes": "tsENV_questions/BallDrop/dataframes/*.parquet"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "DampedMassBetweenWalls/model-record",
+      "name": "model_record.json",
+      "description": "Per-run metadata: parameters_hash, run_type, class label, status, timestamp.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/DampedMassBetweenWalls/model_record.json",
+      "encodingFormat": "application/json",
+      "sha256": "014103b5ae13d57e3ff6ed7741c47fb8261ad34bd1a2deda3ceaf1bd47fa6d8b"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "DampedMassBetweenWalls/sample-manifest",
+      "name": "sample_manifest.json",
+      "description": "Train/test split assignment per question variant.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/DampedMassBetweenWalls/sample_manifest.json",
+      "encodingFormat": "application/json",
+      "sha256": "2ddbfe04119ca7b42bb86e6d64ec589f09fe757d489f7db83d9e5ab41737075b"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "DampedMassBetweenWalls/questions-file",
+      "name": "questions.json",
+      "description": "Question definitions, prompts, label space, and evaluation rules.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/DampedMassBetweenWalls/questions.json",
+      "encodingFormat": "application/json",
+      "sha256": "f69d5cc1863f203c3d2acedd7fdf29f712b6a04148ea275bc4d39e493418e71a"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "DampedMassBetweenWalls/noise-adder",
+      "name": "noise_adder.py",
+      "description": "Model-specific script for adding low/high noise profiles and reporting noise analysis.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/DampedMassBetweenWalls/noise_adder.py",
+      "encodingFormat": "text/x-python",
+      "sha256": "76857a2b64e32c39a14fd8742a327f11cb4acd3d4a9db2d5cd4e6bb449c025b1"
+    },
+    {
+      "@type": "cr:FileSet",
+      "@id": "DampedMassBetweenWalls/parquet-files",
+      "name": "parquet-files",
+      "description": "One Parquet file per simulation run; filename stem is the run UUID.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "encodingFormat": "application/vnd.apache.parquet",
+      "includes": "tsENV_questions/DampedMassBetweenWalls/dataframes/*.parquet"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "InclinedPlane/model-record",
+      "name": "model_record.json",
+      "description": "Per-run metadata: parameters_hash, run_type, class label, status, timestamp.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/InclinedPlane/model_record.json",
+      "encodingFormat": "application/json",
+      "sha256": "9119e5e531bd8e27fc22e4e9133ee5d850f554a3c48c49ec442ccf8272717255"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "InclinedPlane/sample-manifest",
+      "name": "sample_manifest.json",
+      "description": "Train/test split assignment per question variant.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/InclinedPlane/sample_manifest.json",
+      "encodingFormat": "application/json",
+      "sha256": "7775824de93eda13044ed70adfd4aa2763d2dc6301fcf438e355991f39bda0e1"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "InclinedPlane/questions-file",
+      "name": "questions.json",
+      "description": "Question definitions, prompts, label space, and evaluation rules.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/InclinedPlane/questions.json",
+      "encodingFormat": "application/json",
+      "sha256": "967ff77aa960b62bbe729fe12c89fe3fcf4990a70f6e13e87d8ad22c03a15b79"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "InclinedPlane/noise-adder",
+      "name": "noise_adder.py",
+      "description": "Model-specific script for adding low/high noise profiles and reporting noise analysis.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "contentUrl": "tsENV_questions/InclinedPlane/noise_adder.py",
+      "encodingFormat": "text/x-python",
+      "sha256": "96f573ce0b160e395d2d313d747376380c579c7db53ca40fed7bc2639aa71aef"
+    },
+    {
+      "@type": "cr:FileSet",
+      "@id": "InclinedPlane/parquet-files",
+      "name": "parquet-files",
+      "description": "One Parquet file per simulation run; filename stem is the run UUID.",
+      "containedIn": {
+        "@id": "repo"
+      },
+      "encodingFormat": "application/vnd.apache.parquet",
+      "includes": "tsENV_questions/InclinedPlane/dataframes/*.parquet"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "BallDrop/timeseries",
+      "name": "timeseries",
+      "description": "Time-series rows from each simulation run.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/timeseries/run_uuid",
+          "name": "run_uuid",
+          "description": "Run UUID; the Parquet file stem and canonical run identity.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileSet": {
+              "@id": "BallDrop/parquet-files"
+            },
+            "extract": {
+              "fileProperty": "filename"
+            },
+            "transform": {
+              "regex": "^(.+)\\.parquet$"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/timeseries/Position",
+          "name": "Position",
+          "description": "Column 'Position' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "BallDrop/parquet-files"
+            },
+            "extract": {
+              "column": "Position"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/timeseries/Velocity",
+          "name": "Velocity",
+          "description": "Column 'Velocity' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "BallDrop/parquet-files"
+            },
+            "extract": {
+              "column": "Velocity"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/timeseries/Hard_Stop_f",
+          "name": "Hard_Stop_f",
+          "description": "Column 'Hard_Stop_f' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "BallDrop/parquet-files"
+            },
+            "extract": {
+              "column": "Hard_Stop_f"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/timeseries/time",
+          "name": "time",
+          "description": "Column 'time' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "BallDrop/parquet-files"
+            },
+            "extract": {
+              "column": "time"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "BallDrop/questions",
+      "name": "questions",
+      "description": "One record per question. Each question fixes a train/test split and the label space (intervened parameter names plus 'no parameter change').",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/question_hash",
+          "name": "question_hash",
+          "description": "Hash uniquely identifying this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/train_test_sample_hash",
+          "name": "train_test_sample_hash",
+          "description": "Hash uniquely identifying the train/test sample assignment for this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.train_test_sample_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/allowed_labels",
+          "name": "allowed_labels",
+          "description": "Label space for this question: intervened parameter names plus the class 'no parameter change'.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_text.allowed_labels"
+            }
+          },
+          "repeated": true
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/desc_level",
+          "name": "desc_level",
+          "description": "Verbosity level of the environment description shown to the agent.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.desc_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/noise_level",
+          "name": "noise_level",
+          "description": "Noise profile applied to the time-series ('none', 'low', 'high').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.noise_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/is_adversarial",
+          "name": "is_adversarial",
+          "description": "Whether the question uses an adversarial recipe (may be null).",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.is_adversarial"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/number_test_samples",
+          "name": "number_test_samples",
+          "description": "Number of test samples included in the question.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_test_samples"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/number_train_samples_per_class",
+          "name": "number_train_samples_per_class",
+          "description": "Number of few-shot training samples per class (0 for zero-shot).",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_train_samples_per_class"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/question_seed",
+          "name": "question_seed",
+          "description": "Random seed used when sampling the question variant.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.question_seed"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/row_slug",
+          "name": "row_slug",
+          "description": "Identifier for the row (recipe row) the question instantiates.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.row_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/shot_slug",
+          "name": "shot_slug",
+          "description": "Identifier for the shot (few-shot configuration) the question uses.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.shot_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/test_set_slug",
+          "name": "test_set_slug",
+          "description": "Identifier for the test set used by this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.test_set_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/questions/type_of_request",
+          "name": "type_of_request",
+          "description": "How the question is posed to the agent (e.g. 'direct').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "BallDrop/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.type_of_request"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "BallDrop/labels",
+      "name": "labels",
+      "description": "Label space for this environment: intervened parameter names plus the class 'no parameter change'. Each label has a stable integer code shared across all questions in the environment.",
+      "key": {
+        "@id": "BallDrop/labels/integer_id"
+      },
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/labels/label",
+          "name": "label",
+          "description": "Human-readable label name.",
+          "dataType": "sc:Text"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "BallDrop/labels/integer_id",
+          "name": "integer_id",
+          "description": "Stable integer code for the label.",
+          "dataType": "sc:Integer"
+        }
+      ],
+      "data": [
+        {
+          "BallDrop/labels/label": "coefficient of restitution",
+          "BallDrop/labels/integer_id": 0
+        },
+        {
+          "BallDrop/labels/label": "mass",
+          "BallDrop/labels/integer_id": 1
+        },
+        {
+          "BallDrop/labels/label": "drag coefficient",
+          "BallDrop/labels/integer_id": 2
+        },
+        {
+          "BallDrop/labels/label": "gravity acceleration",
+          "BallDrop/labels/integer_id": 3
+        },
+        {
+          "BallDrop/labels/label": "no parameter change",
+          "BallDrop/labels/integer_id": 4
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "DampedMassBetweenWalls/timeseries",
+      "name": "timeseries",
+      "description": "Time-series rows from each simulation run.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/timeseries/run_uuid",
+          "name": "run_uuid",
+          "description": "Run UUID; the Parquet file stem and canonical run identity.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileSet": {
+              "@id": "DampedMassBetweenWalls/parquet-files"
+            },
+            "extract": {
+              "fileProperty": "filename"
+            },
+            "transform": {
+              "regex": "^(.+)\\.parquet$"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/timeseries/Initial_Spacer_F_x",
+          "name": "Initial_Spacer_F_x",
+          "description": "Column 'Initial_Spacer_F_x' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "DampedMassBetweenWalls/parquet-files"
+            },
+            "extract": {
+              "column": "Initial_Spacer_F_x"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/timeseries/Initial_Spacer_F_v",
+          "name": "Initial_Spacer_F_v",
+          "description": "Column 'Initial_Spacer_F_v' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "DampedMassBetweenWalls/parquet-files"
+            },
+            "extract": {
+              "column": "Initial_Spacer_F_v"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/timeseries/Right_Hard_Stop_f",
+          "name": "Right_Hard_Stop_f",
+          "description": "Column 'Right_Hard_Stop_f' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "DampedMassBetweenWalls/parquet-files"
+            },
+            "extract": {
+              "column": "Right_Hard_Stop_f"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/timeseries/time",
+          "name": "time",
+          "description": "Column 'time' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "DampedMassBetweenWalls/parquet-files"
+            },
+            "extract": {
+              "column": "time"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "DampedMassBetweenWalls/questions",
+      "name": "questions",
+      "description": "One record per question. Each question fixes a train/test split and the label space (intervened parameter names plus 'no parameter change').",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/question_hash",
+          "name": "question_hash",
+          "description": "Hash uniquely identifying this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/train_test_sample_hash",
+          "name": "train_test_sample_hash",
+          "description": "Hash uniquely identifying the train/test sample assignment for this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.train_test_sample_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/allowed_labels",
+          "name": "allowed_labels",
+          "description": "Label space for this question: intervened parameter names plus the class 'no parameter change'.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_text.allowed_labels"
+            }
+          },
+          "repeated": true
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/desc_level",
+          "name": "desc_level",
+          "description": "Verbosity level of the environment description shown to the agent.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.desc_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/noise_level",
+          "name": "noise_level",
+          "description": "Noise profile applied to the time-series ('none', 'low', 'high').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.noise_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/is_adversarial",
+          "name": "is_adversarial",
+          "description": "Whether the question uses an adversarial recipe (may be null).",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.is_adversarial"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/number_test_samples",
+          "name": "number_test_samples",
+          "description": "Number of test samples included in the question.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_test_samples"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/number_train_samples_per_class",
+          "name": "number_train_samples_per_class",
+          "description": "Number of few-shot training samples per class (0 for zero-shot).",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_train_samples_per_class"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/question_seed",
+          "name": "question_seed",
+          "description": "Random seed used when sampling the question variant.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.question_seed"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/row_slug",
+          "name": "row_slug",
+          "description": "Identifier for the row (recipe row) the question instantiates.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.row_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/shot_slug",
+          "name": "shot_slug",
+          "description": "Identifier for the shot (few-shot configuration) the question uses.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.shot_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/test_set_slug",
+          "name": "test_set_slug",
+          "description": "Identifier for the test set used by this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.test_set_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/questions/type_of_request",
+          "name": "type_of_request",
+          "description": "How the question is posed to the agent (e.g. 'direct').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "DampedMassBetweenWalls/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.type_of_request"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "DampedMassBetweenWalls/labels",
+      "name": "labels",
+      "description": "Label space for this environment: intervened parameter names plus the class 'no parameter change'. Each label has a stable integer code shared across all questions in the environment.",
+      "key": {
+        "@id": "DampedMassBetweenWalls/labels/integer_id"
+      },
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/labels/label",
+          "name": "label",
+          "description": "Human-readable label name.",
+          "dataType": "sc:Text"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "DampedMassBetweenWalls/labels/integer_id",
+          "name": "integer_id",
+          "description": "Stable integer code for the label.",
+          "dataType": "sc:Integer"
+        }
+      ],
+      "data": [
+        {
+          "DampedMassBetweenWalls/labels/label": "coefficient of restitution of the left wall",
+          "DampedMassBetweenWalls/labels/integer_id": 0
+        },
+        {
+          "DampedMassBetweenWalls/labels/label": "coefficient of restitution of the right wall",
+          "DampedMassBetweenWalls/labels/integer_id": 1
+        },
+        {
+          "DampedMassBetweenWalls/labels/label": "coefficient of viscous damping",
+          "DampedMassBetweenWalls/labels/integer_id": 2
+        },
+        {
+          "DampedMassBetweenWalls/labels/label": "inclination angle of the rail",
+          "DampedMassBetweenWalls/labels/integer_id": 3
+        },
+        {
+          "DampedMassBetweenWalls/labels/label": "weight of the mass",
+          "DampedMassBetweenWalls/labels/integer_id": 4
+        },
+        {
+          "DampedMassBetweenWalls/labels/label": "no parameter change",
+          "DampedMassBetweenWalls/labels/integer_id": 5
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "InclinedPlane/timeseries",
+      "name": "timeseries",
+      "description": "Time-series rows from each simulation run.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/timeseries/run_uuid",
+          "name": "run_uuid",
+          "description": "Run UUID; the Parquet file stem and canonical run identity.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileSet": {
+              "@id": "InclinedPlane/parquet-files"
+            },
+            "extract": {
+              "fileProperty": "filename"
+            },
+            "transform": {
+              "regex": "^(.+)\\.parquet$"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/timeseries/mass_velocity",
+          "name": "mass_velocity",
+          "description": "Column 'mass_velocity' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "InclinedPlane/parquet-files"
+            },
+            "extract": {
+              "column": "mass_velocity"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/timeseries/friction_force",
+          "name": "friction_force",
+          "description": "Column 'friction_force' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "InclinedPlane/parquet-files"
+            },
+            "extract": {
+              "column": "friction_force"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/timeseries/normal_force",
+          "name": "normal_force",
+          "description": "Column 'normal_force' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "InclinedPlane/parquet-files"
+            },
+            "extract": {
+              "column": "normal_force"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/timeseries/time",
+          "name": "time",
+          "description": "Column 'time' from each Parquet run file (dtype: float32).",
+          "dataType": "sc:Float",
+          "source": {
+            "fileSet": {
+              "@id": "InclinedPlane/parquet-files"
+            },
+            "extract": {
+              "column": "time"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "InclinedPlane/questions",
+      "name": "questions",
+      "description": "One record per question. Each question fixes a train/test split and the label space (intervened parameter names plus 'no parameter change').",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/question_hash",
+          "name": "question_hash",
+          "description": "Hash uniquely identifying this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/train_test_sample_hash",
+          "name": "train_test_sample_hash",
+          "description": "Hash uniquely identifying the train/test sample assignment for this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.train_test_sample_hash"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/allowed_labels",
+          "name": "allowed_labels",
+          "description": "Label space for this question: intervened parameter names plus the class 'no parameter change'.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.question_text.allowed_labels"
+            }
+          },
+          "repeated": true
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/desc_level",
+          "name": "desc_level",
+          "description": "Verbosity level of the environment description shown to the agent.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.desc_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/noise_level",
+          "name": "noise_level",
+          "description": "Noise profile applied to the time-series ('none', 'low', 'high').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.noise_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/is_adversarial",
+          "name": "is_adversarial",
+          "description": "Whether the question uses an adversarial recipe (may be null).",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.is_adversarial"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/number_test_samples",
+          "name": "number_test_samples",
+          "description": "Number of test samples included in the question.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_test_samples"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/number_train_samples_per_class",
+          "name": "number_train_samples_per_class",
+          "description": "Number of few-shot training samples per class (0 for zero-shot).",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.number_train_samples_per_class"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/question_seed",
+          "name": "question_seed",
+          "description": "Random seed used when sampling the question variant.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.question_seed"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/row_slug",
+          "name": "row_slug",
+          "description": "Identifier for the row (recipe row) the question instantiates.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.row_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/shot_slug",
+          "name": "shot_slug",
+          "description": "Identifier for the shot (few-shot configuration) the question uses.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.shot_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/test_set_slug",
+          "name": "test_set_slug",
+          "description": "Identifier for the test set used by this question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.test_set_slug"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/questions/type_of_request",
+          "name": "type_of_request",
+          "description": "How the question is posed to the agent (e.g. 'direct').",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "InclinedPlane/questions-file"
+            },
+            "extract": {
+              "jsonPath": "$.questions.*.recipe_info.type_of_request"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "InclinedPlane/labels",
+      "name": "labels",
+      "description": "Label space for this environment: intervened parameter names plus the class 'no parameter change'. Each label has a stable integer code shared across all questions in the environment.",
+      "key": {
+        "@id": "InclinedPlane/labels/integer_id"
+      },
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/labels/label",
+          "name": "label",
+          "description": "Human-readable label name.",
+          "dataType": "sc:Text"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "InclinedPlane/labels/integer_id",
+          "name": "integer_id",
+          "description": "Stable integer code for the label.",
+          "dataType": "sc:Integer"
+        }
+      ],
+      "data": [
+        {
+          "InclinedPlane/labels/label": "Coulomb friction coefficient",
+          "InclinedPlane/labels/integer_id": 0
+        },
+        {
+          "InclinedPlane/labels/label": "breakaway friction coefficient",
+          "InclinedPlane/labels/integer_id": 1
+        },
+        {
+          "InclinedPlane/labels/label": "gravity acceleration",
+          "InclinedPlane/labels/integer_id": 2
+        },
+        {
+          "InclinedPlane/labels/label": "plane inclination angle",
+          "InclinedPlane/labels/integer_id": 3
+        },
+        {
+          "InclinedPlane/labels/label": "no parameter change",
+          "InclinedPlane/labels/integer_id": 4
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "coefficient of restitution",
+    "mass",
+    "drag coefficient",
+    "gravity acceleration",
+    "no parameter change",
+    "coefficient of restitution of the left wall",
+    "coefficient of restitution of the right wall",
+    "coefficient of viscous damping",
+    "inclination angle of the rail",
+    "weight of the mass",
+    "Coulomb friction coefficient",
+    "breakaway friction coefficient",
+    "plane inclination angle"
+  ],
+  "rai:dataLimitations": "Limited to the specific simulator designs, parameter ranges, observable signals, and intervention mechanisms defined in tsENV. It is not suitable for real-world system identification, control, robotics deployment, or safety-critical decision-making.",
+  "rai:dataBiases": "The dataset reflects the structural assumptions of the tsENV simulation pipeline, including parameter sampling strategies, detectability thresholds (e.g., SRD-based criteria), and predefined observable signals.",
+  "rai:personalSensitiveInformation": "The dataset contains no personal or sensitive information. All data is generated from physics-based simulations and includes only numerical time-series signals, parameters, and derived metadata. No human subjects, demographic attributes, geographic identifiers, health data, or other sensitive categories are present.",
+  "rai:dataUseCases": "The dataset is designed to evaluate models on identifying which system parameter was intervened upon from observed time-series trajectories. Validated use cases include benchmark evaluation of e.g. agent-based reasoning systems within the tsENV framework. It is not validated for real-world prediction, physical system control, scientific discovery, or causal inference outside the simulator setting.",
+  "rai:dataSocialImpact": "The dataset promotes reproducible evaluation of agents on structured reasoning tasks involving interventions in dynamical systems, supporting research in interpretability and causal reasoning. Potential risks include overinterpreting benchmark performance as evidence of real-world physical reasoning or deployment readiness, especially in safety-critical domains such as robotics or engineering. These risks are mitigated by the synthetic nature of the data, explicit detectability constraints, and clear documentation of simulator assumptions and limitations.",
+  "rai:hasSyntheticData": true,
+  "prov:wasDerivedFrom": "This dataset is fully synthetic and generated from simulation code defined in the tsENV repository. It is not derived from any external or real-world datasets.",
+  "prov:wasGeneratedBy": [
+    {
+      "@type": "prov:Activity",
+      "@id": "tsENV-pipeline",
+      "name": "tsENV simulation pipeline",
+      "description": "The dataset was generated using the tsENV pipeline."
+    }
+  ]
+}

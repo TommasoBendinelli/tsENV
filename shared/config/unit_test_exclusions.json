@@ -1,0 +1,30 @@
+{
+  "fixtures": [
+    {
+      "name": "similarity_ranking_fixture",
+      "reason": "Unit-test fixture baseline to exclude from similarity ranking.",
+      "baseline": "72692d6f1b1739313b4bd15100445c7c",
+      "children": [
+        "e2a0b84b01c81171024b9e5ebc0e25d0",
+        "cb04adeebff419b4fd47645870bbc6cf",
+        "1a889add3776f8d71b2aef2c8f61e2d2"
+      ],
+      "time0": []
+    },
+    {
+      "name": "initial_velocity_zero_fixture",
+      "reason": "Unit-test fixture baseline to exclude (initial_velocity = 0).",
+      "baseline": "f6cd44ca1c409efb6a520d9008fd3133",
+      "children": [
+        "8336db9033c3cb63b3ed74be8a9e5fad",
+        "5ffa3a803ca254a86d9f249e4465b9f9",
+        "384c6b8acfe8f711c831f8ec439aba79"
+      ],
+      "time0": [
+        "190eb0951f99a421a52d9da42f9cd710",
+        "8fb8c71ca08aa8d69c2e74daedb3c58d",
+        "4aebaf17c7285548aba90b948e2175d3"
+      ]
+    }
+  ]
+}

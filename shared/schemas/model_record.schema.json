@@ -1,0 +1,604 @@
+{
+  "$id": "model_record.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "ClassificationConfig": {
+      "additionalProperties": true,
+      "properties": {
+        "dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset"
+        },
+        "entries": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/definitions/ClassificationEntry"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entries"
+        },
+        "feedback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feedback"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "one_shot_examples": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "One Shot Examples"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question"
+        },
+        "signal_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal Text"
+        },
+        "signals": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signals"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "title": "ClassificationConfig",
+      "type": "object"
+    },
+    "ClassificationEntry": {
+      "additionalProperties": true,
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "few_shot_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Few Shot Ids"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "one_shot_examples": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "One Shot Examples"
+        }
+      },
+      "title": "ClassificationEntry",
+      "type": "object"
+    },
+    "ModelMetadata": {
+      "additionalProperties": true,
+      "properties": {
+        "parameter_display_mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Parameter Display Mapping",
+          "type": "object"
+        },
+        "signals": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/SignalSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signals"
+        }
+      },
+      "title": "ModelMetadata",
+      "type": "object"
+    },
+    "SignalSpec": {
+      "additionalProperties": true,
+      "properties": {
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "noise_multiplier": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Noise Multiplier"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "SignalSpec",
+      "type": "object"
+    },
+    "SimulatedInterventionRecord": {
+      "additionalProperties": true,
+      "properties": {
+        "depth": {
+          "default": 1,
+          "title": "Depth",
+          "type": "integer"
+        },
+        "end_time_input_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Time Input S"
+        },
+        "end_time_simulation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Time Simulation"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "intervention_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intervention Time"
+        },
+        "intervention_uuid": {
+          "default": "",
+          "title": "Intervention Uuid",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parameter": {
+          "default": "",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "parent_id": {
+          "title": "Parent Id",
+          "type": "string"
+        },
+        "set_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Set Value"
+        },
+        "status": {
+          "default": "not_run",
+          "enum": [
+            "not_run",
+            "success",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "time0_baseline_end_time_simulation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time0 Baseline End Time Simulation"
+        },
+        "time0_baseline_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time0 Baseline Error"
+        },
+        "time0_baseline_status": {
+          "default": "not_run",
+          "enum": [
+            "not_run",
+            "success",
+            "failed"
+          ],
+          "title": "Time0 Baseline Status",
+          "type": "string"
+        },
+        "time0_baseline_timestamp": {
+          "default": "",
+          "title": "Time0 Baseline Timestamp",
+          "type": "string"
+        },
+        "time0_baseline_uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time0 Baseline Uuid"
+        },
+        "timestamp": {
+          "default": "",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "variable": {
+          "default": "",
+          "title": "Variable",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "parent_id"
+      ],
+      "title": "SimulatedInterventionRecord",
+      "type": "object"
+    },
+    "SimulatedRunRecord": {
+      "additionalProperties": true,
+      "properties": {
+        "baseline_uuid": {
+          "default": "",
+          "title": "Baseline Uuid",
+          "type": "string"
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ClassificationConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "end_time_input_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Time Input S"
+        },
+        "end_time_simulation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Time Simulation"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "intervention_time": {
+          "default": 0.0,
+          "title": "Intervention Time",
+          "type": "number"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/definitions/SimulatedInterventionRecord"
+          },
+          "title": "Interventions",
+          "type": "array"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Noise"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sampling_rate_hz": {
+          "description": "Samples per second (Hz).",
+          "title": "Sampling Rate Hz",
+          "type": "number"
+        },
+        "status": {
+          "default": "not_run",
+          "enum": [
+            "not_run",
+            "success",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "timestamp": {
+          "default": "",
+          "title": "Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "sampling_rate_hz"
+      ],
+      "title": "SimulatedRunRecord",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "baselines": {
+      "items": {
+        "$ref": "#/definitions/SimulatedRunRecord"
+      },
+      "title": "Baselines",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/definitions/ModelMetadata"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "model_id",
+    "baselines"
+  ],
+  "title": "ModelRecord",
+  "type": "object"
+}

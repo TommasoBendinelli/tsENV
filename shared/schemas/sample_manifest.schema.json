@@ -1,0 +1,145 @@
+{
+  "$id": "sample_manifest.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": {
+    "type": "array",
+    "items": {
+      "$ref": "#/definitions/ManifestItem"
+    },
+    "minItems": 1
+  },
+  "definitions": {
+    "Accuracy": {
+      "additionalProperties": false,
+      "properties": {
+        "correlation_nn": {
+          "type": "number"
+        },
+        "euclidean_centroid": {
+          "type": "number"
+        },
+        "euclidean_knn": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "euclidean_knn",
+        "euclidean_centroid",
+        "correlation_nn"
+      ],
+      "type": "object"
+    },
+    "ManifestShotSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "is_adversarial": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "number_test_samples": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "number_train_samples_per_class": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "is_adversarial",
+        "number_train_samples_per_class",
+        "number_test_samples"
+      ],
+      "type": "object"
+    },
+    "ManifestItem": {
+      "additionalProperties": false,
+      "properties": {
+        "accuracy_with_baselines": {
+          "$ref": "#/definitions/Accuracy"
+        },
+        "accuracy_with_baselines_all_samples": {
+          "$ref": "#/definitions/Accuracy"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "test_set_slug": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "shot_slug_recipe": {
+          "$ref": "#/definitions/ManifestShotSelection"
+        },
+        "test_samples": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "test_samples_baselines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "test_samples_hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "other_samples": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "train_samples": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "train_samples_baselines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "train_samples_hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "train_test_sample_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "train_samples_baselines",
+        "train_samples",
+        "train_samples_hashes",
+        "test_samples_baselines",
+        "test_samples",
+        "test_samples_hashes",
+        "other_samples",
+        "seed",
+        "test_set_slug",
+        "shot_slug_recipe",
+        "accuracy_with_baselines",
+        "accuracy_with_baselines_all_samples",
+        "train_test_sample_hash"
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "name": "tsenv-default",
+  "axes": {
+    "context": [
+      "high",
+      "low"
+    ],
+    "shot": [
+      {
+        "id": "zero_shot",
+        "is_adversarial": false,
+        "train_samples": 0
+      },
+      {
+        "id": "one_shot",
+        "is_adversarial": false,
+        "train_samples": 1
+      },
+      {
+        "id": "few_shot",
+        "is_adversarial": false,
+        "train_samples": 3
+      },
+      {
+        "id": "many_shots",
+        "is_adversarial":false,
+        "train_samples": 20
+      }
+    ],
+    "eval_mode": [
+      "direct",
+      "code",
+      "open-ended"
+    ],
+    "noise_profiles": ["none", "low", "high"]
+  }
+}

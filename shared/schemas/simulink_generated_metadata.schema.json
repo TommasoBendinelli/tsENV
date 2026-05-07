@@ -1,0 +1,110 @@
+{
+  "$id": "simulink_generated_metadata.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "InterventionBlockMapEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "items": {
+            "$ref": "#/definitions/InterventionBlockParameter"
+          },
+          "title": "Parameters",
+          "type": "array"
+        }
+      },
+      "required": [
+        "parameters"
+      ],
+      "title": "InterventionBlockMapEntry",
+      "type": "object"
+    },
+    "InterventionBlockParameter": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "title": "Expression",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "runtime_type": {
+          "title": "Runtime Type",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "name",
+        "expression",
+        "runtime_type"
+      ],
+      "title": "InterventionBlockParameter",
+      "type": "object"
+    }
+  },
+  "description": "Ground-truth schema for `generated/metadata.json`.",
+  "properties": {
+    "default_values": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "properties": {
+        "end_time_input_s": {
+          "title": "End Time Input S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "end_time_input_s"
+      ],
+      "title": "Default Values",
+      "type": "object"
+    },
+    "intervention_block_map": {
+      "additionalProperties": {
+        "$ref": "#/definitions/InterventionBlockMapEntry"
+      },
+      "title": "Intervention Block Map",
+      "type": "object"
+    },
+    "parameter_set": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parameter Set",
+      "type": "array"
+    },
+    "simscape_signals_available": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Simscape Signals Available",
+      "type": "array"
+    },
+    "simulink_signals_available": {
+      "items": {
+        "pattern": "^[^ ]+$",
+        "type": "string"
+      },
+      "title": "Simulink Signals Available",
+      "type": "array"
+    }
+  },
+  "required": [
+    "parameter_set",
+    "intervention_block_map",
+    "default_values",
+    "simulink_signals_available",
+    "simscape_signals_available"
+  ],
+  "title": "SimulinkGeneratedMetadata",
+  "type": "object"
+}

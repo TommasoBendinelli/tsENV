@@ -1,0 +1,200 @@
+{
+  "$id": "similarity_metrics.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "minLength": 1
+    },
+    "noise_adder_md5": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "eligible_baselines": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_baselines": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "baselines": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/BaselineSimilarity"
+      }
+    }
+  },
+  "required": [
+    "timestamp",
+    "noise_adder_md5",
+    "eligible_baselines",
+    "total_baselines",
+    "baselines"
+  ],
+  "definitions": {
+    "DetectabilityOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mean_euclidean_distance_clean_dirty": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "mean_euclidean_distance_clean_baseline": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "mean_SNR": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "first_diff": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "mean_euclidean_distance_clean_dirty",
+        "mean_euclidean_distance_clean_baseline",
+        "mean_SNR",
+        "first_diff"
+      ]
+    },
+    "BaselineDetectabilityStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment_specific_detectability": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "error"
+          ]
+        },
+        "detectable": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "error"
+          ]
+        },
+        "detectability_output": {
+          "$ref": "#/definitions/DetectabilityOutput"
+        }
+      },
+      "required": [
+        "environment_specific_detectability",
+        "detectable",
+        "detectability_output"
+      ]
+    },
+    "Time0DetectabilityStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "detectable": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "error"
+          ]
+        },
+        "detectability_output": {
+          "$ref": "#/definitions/DetectabilityOutput"
+        }
+      },
+      "required": [
+        "detectable",
+        "detectability_output"
+      ]
+    },
+    "DetectabilitySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vs_baseline": {
+          "$ref": "#/definitions/BaselineDetectabilityStatus"
+        },
+        "vs_time0_baseline": {
+          "$ref": "#/definitions/Time0DetectabilityStatus"
+        }
+      },
+      "required": [
+        "vs_baseline",
+        "vs_time0_baseline"
+      ]
+    },
+    "ChildSimilarity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detectability": {
+          "$ref": "#/definitions/DetectabilitySummary"
+        },
+        "eligible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url",
+        "detectability",
+        "eligible"
+      ]
+    },
+    "BaselineSimilarity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "family_eligible": {
+          "type": "boolean"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "children": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ChildSimilarity"
+          }
+        }
+      },
+      "required": [
+        "url",
+        "family_eligible",
+        "eligible",
+        "children"
+      ]
+    }
+  }
+}
