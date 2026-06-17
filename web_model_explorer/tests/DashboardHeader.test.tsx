@@ -21,7 +21,7 @@ beforeEach(() => {
 test('write controls are not shown', () => {
   render(
     <DashboardControllerProvider controller={controller}>
-      <DashboardHeader runsDirName="runs_7161" />
+      <DashboardHeader runsDirName="custom_runs" />
     </DashboardControllerProvider>
   );
   expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
@@ -29,13 +29,18 @@ test('write controls are not shown', () => {
   expect(screen.queryByRole('button', { name: /cleanup orphans/i })).not.toBeInTheDocument();
 });
 
-test('Header shows the configured runs folder', () => {
-  useDashboardStore.setState({ selectedModel: 'DampedMassBetweenWalls' });
+test('Header shows the configured runs folder and selected policy', () => {
+  useDashboardStore.setState({
+    selectedModel: 'DampedMassBetweenWalls',
+    policies: ['policy_a'],
+    selectedPolicy: 'policy_a',
+  });
   render(
     <DashboardControllerProvider controller={controller}>
-      <DashboardHeader runsDirName="runs_7161" />
+      <DashboardHeader runsDirName="custom_runs" />
     </DashboardControllerProvider>
   );
   expect(screen.getByText(/runs folder:/i)).toBeInTheDocument();
-  expect(screen.getByText('runs_7161')).toBeInTheDocument();
+  expect(screen.getByText('custom_runs')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('policy_a')).toBeInTheDocument();
 });

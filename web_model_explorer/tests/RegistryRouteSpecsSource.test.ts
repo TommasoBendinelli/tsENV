@@ -24,6 +24,11 @@ const touch = (filePath: string) => {
   fs.writeFileSync(filePath, '', 'utf8');
 };
 
+const writeJsonl = (filePath: string, rows: unknown[]) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8');
+};
+
 const writeEligibilityMetrics = (
   modelDir: string,
   baselines: Record<string, { eligible: boolean; children?: Record<string, unknown> }>
@@ -464,6 +469,7 @@ const createFixtureModelWithSkippedChild = () => {
 describe('/api/registry strict storage source', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllEnvs();
   });
 
   test('GET /api/registry builds merged baselines from strict specs + flat runtime map', async () => {
@@ -497,10 +503,10 @@ describe('/api/registry strict storage source', () => {
       [
         "NOISE_DICT = {'low': {}, 'high': {}}",
         "SNR_THR_DICT = {'low': {'global': [], 'local': []}, 'high': {'global': [], 'local': []}}",
-        "def quantify_noise(clean_df, noisy_df, first_diff):",
+        "def quantify_noise(clean, noisy, reference):",
         "    return {'global': [], 'local': []}",
-        "def add_noise(df, first_diff, seed=0, noise_level='low'):",
-        "    return df, quantify_noise(df, df, first_diff)",
+        "def add_noise(src, seed=0, noise_level='low', ref=None):",
+        "    return src, quantify_noise(src, src, ref)",
       ].join('\n'),
       'utf8',
     );
@@ -753,6 +759,244 @@ describe('/api/registry strict storage source', () => {
 
     expect(baseline?.run_id).toBe(baselineUuid);
     expect(baseline?.interventions?.[0]?.name).toBe(childUuid);
+    cwdSpy.mockRestore();
+  });
+
+  test('GET /api/policies and policy-aware registry read resolved run graph plans', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'resolved-plan-route-'));
+    const fakeWebRoot = path.join(tmpRoot, 'web_model_explorer');
+    const modelDir = path.join(tmpRoot, 'models', 'simulink', 'PlanModel');
+    const policyId = 'production_v1';
+    const planDir = path.join(modelDir, 'plans', policyId);
+    const baselineId = 'base001';
+    const childId = 'child001';
+    const time0Id = 'time0001';
+    fs.mkdirSync(fakeWebRoot, { recursive: true });
+    fs.mkdirSync(path.join(modelDir, 'generated'), { recursive: true });
+    fs.mkdirSync(path.join(modelDir, 'runs'), { recursive: true });
+    writeJson(path.join(modelDir, 'generated', 'metadata.json'), {
+      simulink_signals_available: ['height'],
+      simscape_signals_available: [],
+    });
+    writeJson(path.join(modelDir, 'experiment_config.json'), {
+      exposed_variables: { parameters: {}, initial_state: {} },
+      sampling_rate_hz: 10,
+      end_time_input_s: 5,
+      observable_signals: { observable_signals: ['height'] },
+    });
+    writeJson(path.join(modelDir, 'description_levels.json'), {
+      internal_naming_to_agent_facing_signal: { height: 'Height' },
+    });
+    const baselineRecipe = {
+      model: 'PlanModel',
+      baseline_parameters: { gravity: 9.81 },
+      intervention: { parameter: null, time: null, value: null },
+    };
+    const childRecipe = {
+      model: 'PlanModel',
+      baseline_parameters: { gravity: 9.81 },
+      intervention: { parameter: 'gravity', time: 2, value: 5 },
+    };
+    const time0Recipe = {
+      model: 'PlanModel',
+      baseline_parameters: { gravity: 9.81 },
+      intervention: { parameter: 'gravity', time: 0, value: 5 },
+    };
+    writeJsonl(path.join(planDir, 'run_nodes.jsonl'), [
+      {
+        run_id: baselineId,
+        kind: 'baseline',
+        family_id: 'fam_one',
+        recipe: baselineRecipe,
+        recipe_hash: 'hash_base',
+        metadata: { policy_id: policyId, source: 'programmatic', validation_profile: 'paper_selected' },
+      },
+      {
+        run_id: childId,
+        kind: 'intervention',
+        family_id: 'fam_one',
+        recipe: childRecipe,
+        recipe_hash: 'hash_child',
+        metadata: { policy_id: policyId, source: 'programmatic' },
+      },
+      {
+        run_id: time0Id,
+        kind: 'time0_baseline',
+        family_id: 'fam_one',
+        recipe: time0Recipe,
+        recipe_hash: 'hash_time0',
+        metadata: { policy_id: policyId, source: 'programmatic' },
+      },
+    ]);
+    writeJsonl(path.join(planDir, 'run_edges.jsonl'), [
+      {
+        edge_type: 'baseline_to_intervention',
+        family_id: 'fam_one',
+        source_run_id: baselineId,
+        target_run_id: childId,
+        metadata: { direction: 'decrease', parameter: 'gravity', intervention_time: 2 },
+      },
+      {
+        edge_type: 'intervention_to_time0_baseline',
+        family_id: 'fam_one',
+        source_run_id: childId,
+        target_run_id: time0Id,
+        metadata: { direction: 'decrease', parameter: 'gravity', intervention_time: 2 },
+      },
+    ]);
+    writeJson(path.join(planDir, 'generation_report.json'), { status: 'pass', policy_id: policyId });
+    writeJson(path.join(planDir, 'validation_report.json'), { status: 'pass', policy_id: policyId });
+    writeJson(path.join(modelDir, 'runs', 'model_record.json'), {
+      [baselineId]: { status: 'success', run_type: 'baseline', recipe_hash: 'hash_base' },
+      [childId]: { status: 'success', run_type: 'intervention', recipe_hash: 'hash_child' },
+      [time0Id]: { status: 'success', run_type: 'time0_baseline', recipe_hash: 'hash_time0' },
+    });
+    touch(path.join(modelDir, 'runs', baselineId, 'data.parquet'));
+    touch(path.join(modelDir, 'runs', childId, 'data.parquet'));
+    touch(path.join(modelDir, 'runs', time0Id, 'data.parquet'));
+    writeJsonl(path.join(modelDir, 'metrics', policyId, 'cheap_filter_metrics.jsonl'), [
+      {
+        record_type: 'run',
+        policy_id: policyId,
+        family_id: 'fam_one',
+        run_id: childId,
+        kind: 'intervention',
+        cheap_filter_pass: true,
+      },
+      {
+        record_type: 'family',
+        policy_id: policyId,
+        family_id: 'fam_one',
+        baseline_run_id: baselineId,
+        family_cheap_filter_pass: true,
+      },
+    ]);
+    writeJsonl(path.join(modelDir, 'metrics', policyId, 'surrogate_scores', 'surrogate_v1.jsonl'), [
+      {
+        record_type: 'surrogate_score',
+        policy_id: policyId,
+        surrogate_id: 'surrogate_v1',
+        run_id: childId,
+        family_id: 'fam_one',
+        kind: 'intervention',
+        noise_level: 'high',
+        predicted_label: 'gravity',
+        true_label_confidence: 0.98,
+        confidence_margin: 0.3,
+        surrogate_filter_pass: true,
+      },
+    ]);
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
+
+    const policiesRoute = await import('../app/api/policies/route');
+    const policiesRes = await policiesRoute.GET(new Request('http://localhost/api/policies?model=PlanModel'));
+    expect(await policiesRes.json()).toEqual({ policies: [policyId] });
+
+    const registryRoute = await import('../app/api/registry/route');
+    const registryRes = await registryRoute.GET(new Request(`http://localhost/api/registry?model=PlanModel&policy=${policyId}`));
+    expect(registryRes.status).toBe(200);
+    const body = await registryRes.json();
+    const baseline = body.modelRecord.baselines[0];
+    expect(body.registryPage).toMatchObject({
+      mode: 'page',
+      page: 1,
+      page_size: 250,
+      total_families: 1,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+    });
+    expect(body.modelRecord.metadata.policy_id).toBe(policyId);
+    expect(baseline.run_id).toBe(baselineId);
+    expect(baseline.family_id).toBe('fam_one');
+    expect(baseline.recipe_hash).toBe('hash_base');
+    expect(baseline.eligible).toBe(true);
+    expect(baseline.intervention_count).toBe(1);
+    expect(baseline.interventions).toEqual([]);
+
+    const familyRes = await registryRoute.GET(new Request(`http://localhost/api/registry?model=PlanModel&policy=${policyId}&family_id=fam_one`));
+    expect(familyRes.status).toBe(200);
+    const familyBody = await familyRes.json();
+    const familyBaseline = familyBody.modelRecord.baselines[0];
+    const child = familyBaseline.interventions[0];
+    expect(familyBody.registryPage).toMatchObject({ mode: 'family', family_id: 'fam_one' });
+    expect(child.name).toBe(childId);
+    expect(child.direction).toBe('decrease');
+    expect(child.time0_baseline_uuid).toBe(time0Id);
+    expect(child.cheap_filter_pass).toBe(true);
+    expect(child.surrogate_id).toBe('surrogate_v1');
+    expect(child.true_label_confidence).toBe(0.98);
+
+    const runRes = await registryRoute.GET(new Request(`http://localhost/api/registry?model=PlanModel&policy=${policyId}&run=${childId}`));
+    expect(runRes.status).toBe(200);
+    const runBody = await runRes.json();
+    expect(runBody.registryPage).toMatchObject({ mode: 'family', run: childId });
+    expect(runBody.modelRecord.baselines[0].run_id).toBe(baselineId);
+
+    const fullRes = await registryRoute.GET(new Request(`http://localhost/api/registry?model=PlanModel&policy=${policyId}&mode=full`));
+    expect(fullRes.status).toBe(200);
+    const fullBody = await fullRes.json();
+    expect(fullBody.registryPage).toMatchObject({ mode: 'full', total_families: 1 });
+    expect(fullBody.modelRecord.baselines[0].interventions[0].name).toBe(childId);
+    cwdSpy.mockRestore();
+  });
+
+  test('GET /api/policies and policy-aware registry honor WEB_MODEL_EXPLORER_MODEL_ARTIFACT_DIR', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'external-artifact-route-'));
+    const fakeWebRoot = path.join(tmpRoot, 'web_model_explorer');
+    const artifactDir = path.join(tmpRoot, 'shared', 'BallDrop_v2');
+    const policyId = 'ball_drop_10000_families_v1';
+    const planDir = path.join(artifactDir, 'plans', policyId);
+    const baselineId = 'external_base001';
+    fs.mkdirSync(fakeWebRoot, { recursive: true });
+    fs.mkdirSync(path.join(artifactDir, 'generated'), { recursive: true });
+    writeJson(path.join(artifactDir, 'generated', 'metadata.json'), {
+      simulink_signals_available: ['height'],
+      simscape_signals_available: [],
+    });
+    writeJson(path.join(artifactDir, 'experiment_config.json'), {
+      exposed_variables: { parameters: {}, initial_state: {} },
+      sampling_rate_hz: 10,
+      end_time_input_s: 5,
+      observable_signals: { observable_signals: ['height'] },
+    });
+    writeJson(path.join(artifactDir, 'description_levels.json'), {
+      internal_naming_to_agent_facing_signal: { height: 'Height' },
+    });
+    writeJsonl(path.join(planDir, 'run_nodes.jsonl'), [
+      {
+        run_id: baselineId,
+        kind: 'baseline',
+        family_id: 'fam_external',
+        recipe: {
+          model: 'BallDrop',
+          baseline_parameters: { gravity: 9.81 },
+          intervention: { parameter: null, time: null, value: null },
+        },
+        recipe_hash: 'hash_external_base',
+        metadata: { policy_id: policyId, source: 'programmatic' },
+      },
+    ]);
+    writeJsonl(path.join(planDir, 'run_edges.jsonl'), []);
+    writeJson(path.join(planDir, 'generation_report.json'), { status: 'pass', policy_id: policyId });
+    writeJson(path.join(planDir, 'validation_report.json'), { status: 'pass', policy_id: policyId });
+    writeJson(path.join(artifactDir, 'runs', 'model_record.json'), {
+      [baselineId]: { status: 'success', run_type: 'baseline', recipe_hash: 'hash_external_base' },
+    });
+    touch(path.join(artifactDir, 'runs', baselineId, 'data.parquet'));
+    vi.stubEnv('WEB_MODEL_EXPLORER_MODEL_ARTIFACT_DIR', artifactDir);
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
+
+    const policiesRoute = await import('../app/api/policies/route');
+    const policiesRes = await policiesRoute.GET(new Request('http://localhost/api/policies?model=BallDrop'));
+    expect(await policiesRes.json()).toEqual({ policies: [policyId] });
+
+    const registryRoute = await import('../app/api/registry/route');
+    const registryRes = await registryRoute.GET(new Request(`http://localhost/api/registry?model=BallDrop&policy=${policyId}`));
+    expect(registryRes.status).toBe(200);
+    const body = await registryRes.json();
+    expect(body.modelRecord.metadata.policy_id).toBe(policyId);
+    expect(body.modelRecord.baselines[0].run_id).toBe(baselineId);
     cwdSpy.mockRestore();
   });
 });

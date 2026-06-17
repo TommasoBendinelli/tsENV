@@ -8,6 +8,8 @@ export const makeRunsUIController = (overrides: Record<string, any> = {}) =>
     handleVisibleSignalsChange: vi.fn((visibleSignals: string[]) => {
       useDashboardStore.getState().setSelectedSignals(visibleSignals);
     }),
+    handleRegistryPageChange: vi.fn(async () => {}),
+    ensureFamilyDetailsLoaded: vi.fn(async (baseline: any) => baseline),
     updateRegistry: vi.fn(),
     updateRunRole: vi.fn(),
     handleRunDragStart: vi.fn(),
@@ -27,6 +29,7 @@ export const makeRunsUIController = (overrides: Record<string, any> = {}) =>
     getPreviousValue: vi.fn(() => 0),
     toggleRunVisualization: vi.fn(),
     toggleRunVisualizationGroup: vi.fn(),
+    loadRegistryPage: vi.fn(),
     handleClone: vi.fn(),
     toggleRunRowSelection: vi.fn(),
     handleAddRun: vi.fn(),

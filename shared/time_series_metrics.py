@@ -399,25 +399,28 @@ def _intervention_time_value(intervention_time: object) -> float:
     return value if np.isfinite(value) else 0.0
 
 
-def _signal_to_noise_ratio_db_passes(
+def _rms_threshold_passes(
     *,
     signal_columns: Sequence[str],
-    mean_SNR: Optional[Sequence[Optional[float]]],
-    signal_to_noise_ratio_db_thresholds: Optional[Mapping[str, float]],
+    mean_euclidean_distance_clean_baseline: Optional[Sequence[float]],
+    RMS_thresholds: Optional[Mapping[str, float]],
 ) -> bool:
-    if not signal_to_noise_ratio_db_thresholds:
+    if not RMS_thresholds:
         return False
-    for signal, snr_db in zip(signal_columns, list(mean_SNR or [])):
-        if signal not in signal_to_noise_ratio_db_thresholds:
+    for signal, distance in zip(
+        signal_columns,
+        list(mean_euclidean_distance_clean_baseline or []),
+    ):
+        if signal not in RMS_thresholds:
             continue
         try:
-            threshold = float(signal_to_noise_ratio_db_thresholds[signal])
-            parsed_snr = float(snr_db)
+            threshold = float(RMS_thresholds[signal])
+            parsed_distance = float(distance)
         except (TypeError, ValueError):
             continue
-        if not (np.isfinite(threshold) and np.isfinite(parsed_snr)):
+        if not (np.isfinite(threshold) and np.isfinite(parsed_distance)):
             continue
-        if parsed_snr > threshold:
+        if parsed_distance > threshold:
             return True
     return False
 
@@ -508,7 +511,7 @@ def compute_detectability_baseline(
     mean_euclidean_distance_clean_dirty: Optional[Sequence[float]] = None,
     mean_euclidean_distance_clean_baseline: Optional[Sequence[float]] = None,
     mean_SNR: Optional[Sequence[Optional[float]]] = None,
-    signal_to_noise_ratio_db_thresholds: Optional[Mapping[str, float]] = None,
+    RMS_thresholds: Optional[Mapping[str, float]] = None,
     time_round_decimals: int = 9,
 ) -> dict[str, Any]:
     error_payload = _detectability_error_payload()
@@ -535,14 +538,14 @@ def compute_detectability_baseline(
                 mean_euclidean_distance_clean_baseline=mean_euclidean_distance_clean_baseline,
             )
         )
-        snr_passes = _signal_to_noise_ratio_db_passes(
+        rms_passes = _rms_threshold_passes(
             signal_columns=signal_columns,
-            mean_SNR=resolved_mean_snr,
-            signal_to_noise_ratio_db_thresholds=(
-                signal_to_noise_ratio_db_thresholds
+            mean_euclidean_distance_clean_baseline=(
+                mean_euclidean_distance_clean_baseline
             ),
+            RMS_thresholds=RMS_thresholds,
         )
-        detectable = "yes" if snr_passes else "no"
+        detectable = "yes" if rms_passes else "no"
         return _detectability_payload(
             detectable=detectable,
             max_srd=max_srd,
@@ -635,7 +638,7 @@ def compute_detectability_time0_baseline(
     mean_euclidean_distance_clean_dirty: Optional[Sequence[float]] = None,
     mean_euclidean_distance_clean_baseline: Optional[Sequence[float]] = None,
     mean_SNR: Optional[Sequence[Optional[float]]] = None,
-    signal_to_noise_ratio_db_thresholds: Optional[Mapping[str, float]] = None,
+    RMS_thresholds: Optional[Mapping[str, float]] = None,
     time_round_decimals: int = 9,
 ) -> dict[str, Any]:
     error_payload = _detectability_error_payload()
@@ -662,14 +665,14 @@ def compute_detectability_time0_baseline(
                 mean_euclidean_distance_clean_baseline=mean_euclidean_distance_clean_baseline,
             )
         )
-        snr_passes = _signal_to_noise_ratio_db_passes(
+        rms_passes = _rms_threshold_passes(
             signal_columns=signal_columns,
-            mean_SNR=resolved_mean_snr,
-            signal_to_noise_ratio_db_thresholds=(
-                signal_to_noise_ratio_db_thresholds
+            mean_euclidean_distance_clean_baseline=(
+                mean_euclidean_distance_clean_baseline
             ),
+            RMS_thresholds=RMS_thresholds,
         )
-        detectable = "yes" if snr_passes else "no"
+        detectable = "yes" if rms_passes else "no"
         return _detectability_payload(
             detectable=detectable,
             max_srd=max_srd,

@@ -62,19 +62,33 @@ describe('runDataResolver', () => {
     touch(path.join(repoRoot, 'tsENV_questions', 'ModelB', 'dataframes', 'abc123.parquet'));
 
     const located = locateRunModel({ repoRoot, runId: 'abc123' });
-    expect(located).toEqual({ model: 'ModelB', runId: 'abc123' });
+    expect(located).toEqual({ model: 'ModelB', policy: null, runId: 'abc123' });
   });
 
   test('resolveRunDataFile honors WEB_MODEL_EXPLORER_RUNS_DIR_NAME', () => {
-    vi.stubEnv('WEB_MODEL_EXPLORER_RUNS_DIR_NAME', 'runs_7161');
     const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'run-resolver-'));
+    vi.stubEnv('WEB_MODEL_EXPLORER_RUNS_DIR_NAME', 'custom_runs');
     const model = 'DampedMassBetweenWalls';
     const runId = 'custom_runs_dir';
-    touch(path.join(repoRoot, 'models', 'simulink', model, 'runs_7161', runId, 'data.parquet'));
+    touch(path.join(repoRoot, 'models', 'simulink', model, 'custom_runs', runId, 'data.parquet'));
 
     const resolved = resolveRunDataFile({ repoRoot, model, runId });
     expect(resolved).toBeTruthy();
     expect(resolved?.source).toBe('runs');
-    expect(resolved?.filePath).toContain(path.join(model, 'runs_7161', runId, 'data.parquet'));
+    expect(resolved?.filePath).toContain(path.join(repoRoot, 'models', 'simulink', model, 'custom_runs', runId, 'data.parquet'));
+  });
+
+  test('resolveRunDataFile honors WEB_MODEL_EXPLORER_MODEL_ARTIFACT_DIR', () => {
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'run-resolver-'));
+    const artifactDir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-resolver-artifact-dir-'));
+    vi.stubEnv('WEB_MODEL_EXPLORER_MODEL_ARTIFACT_DIR', artifactDir);
+    const model = 'DampedMassBetweenWalls';
+    const runId = 'external_artifact_dir';
+    touch(path.join(artifactDir, 'runs', runId, 'data.parquet'));
+
+    const resolved = resolveRunDataFile({ repoRoot, model, runId });
+    expect(resolved).toBeTruthy();
+    expect(resolved?.source).toBe('runs');
+    expect(resolved?.filePath).toContain(path.join(artifactDir, 'runs', runId, 'data.parquet'));
   });
 });

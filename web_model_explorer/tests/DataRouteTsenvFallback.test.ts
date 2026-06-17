@@ -150,7 +150,7 @@ describe('/api/data tsENV fallback', () => {
     expect(args[7]).toBe('');
   });
 
-  test('passes documented model-run baseline to python loader for child noise analysis', async () => {
+  test('passes documented plan-edge baseline to python loader for child noise analysis', async () => {
     vi.resetModules();
     spawnMock.mockReset();
 
@@ -162,17 +162,14 @@ describe('/api/data tsENV fallback', () => {
     touch(path.join(modelRoot, 'runs', 'child123', 'data.parquet'));
     touch(path.join(modelRoot, 'runs', 'baseline123', 'data.parquet'));
     touch(path.join(modelRoot, 'noise_adder.py'));
+    fs.mkdirSync(path.join(modelRoot, 'plans', 'policy_a'), { recursive: true });
     fs.writeFileSync(
-      path.join(modelRoot, 'model_run_specs.json'),
-      JSON.stringify({
-        parent: {
-          children: {
-            child123: {
-              time0_baseline_uuid: 'baseline123',
-            },
-          },
-        },
-      })
+      path.join(modelRoot, 'plans', 'policy_a', 'run_edges.jsonl'),
+      `${JSON.stringify({
+        edge_type: 'intervention_to_time0_baseline',
+        source_run_id: 'child123',
+        target_run_id: 'baseline123',
+      })}\n`
     );
 
     spawnMock.mockImplementationOnce((_cmd: string, _args: string[]) => {

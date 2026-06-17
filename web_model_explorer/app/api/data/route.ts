@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import {
+  modelDir,
+  modelRunsDir,
+  repoRoot as resolveRepoRoot,
+  tsenvModelDir,
+} from '../modelExplorerPaths';
 import { spawnPython } from '../spawnPython';
 import { resolveRunDataFile, type RunDataSource } from '../runDataResolver';
 
@@ -41,11 +47,11 @@ const resolveNoiseAdderPath = (params: {
   model: string;
   source: 'runs' | 'tsenv';
 }): string | null => {
-  const { repoRoot, model, source } = params;
+  const { model, source } = params;
   const candidates =
     source === 'tsenv'
-      ? [path.join(repoRoot, 'tsENV_questions', model, 'noise_adder.py')]
-      : [path.join(repoRoot, 'models', 'simulink', model, 'noise_adder.py')];
+      ? [path.join(tsenvModelDir(model), 'noise_adder.py')]
+      : [path.join(modelDir(model), 'noise_adder.py')];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
@@ -71,13 +77,12 @@ const resolveRunDataFileForSource = (params: {
 }) => {
   const { repoRoot, model, runId, source } = params;
   if (source === 'tsenv') {
-    const tsenvPath = path.join(repoRoot, 'tsENV_questions', model, 'dataframes', `${runId}.parquet`);
+    const tsenvPath = path.join(tsenvModelDir(model), 'dataframes', `${runId}.parquet`);
     if (fs.existsSync(tsenvPath)) {
       return { model, runId, source, format: 'parquet' as const, filePath: tsenvPath };
     }
   } else {
-    const runsDirName = String(process.env.WEB_MODEL_EXPLORER_RUNS_DIR_NAME ?? '').trim() || 'runs';
-    const runDir = path.join(repoRoot, 'models', 'simulink', model, runsDirName, runId);
+    const runDir = path.join(modelRunsDir(model), runId);
     const parquetPath = path.join(runDir, 'data.parquet');
     const csvPath = path.join(runDir, 'data.csv');
     if (fs.existsSync(parquetPath)) {
@@ -90,21 +95,51 @@ const resolveRunDataFileForSource = (params: {
   return resolveRunDataFile({ repoRoot, model, runId });
 };
 
-const baselineUuidFromModelRunSpecs = (params: {
+const readJsonlObjects = (filePath: string): Array<Record<string, unknown>> => {
+  try {
+    return fs.readFileSync(filePath, 'utf8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown)
+      .filter((value): value is Record<string, unknown> =>
+        Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+      );
+  } catch {
+    return [];
+  }
+};
+
+const baselineUuidFromPlanEdges = (params: {
   repoRoot: string;
   model: string;
   runId: string;
 }): string | null => {
-  const payload = readJsonObject(path.join(params.repoRoot, 'models', 'simulink', params.model, 'model_run_specs.json'));
-  for (const [baselineId, rawBaseline] of Object.entries(payload)) {
-    if (String(baselineId).trim() === params.runId) return null;
-    if (!rawBaseline || typeof rawBaseline !== 'object' || Array.isArray(rawBaseline)) continue;
-    const children = (rawBaseline as Record<string, unknown>).children;
-    if (!children || typeof children !== 'object' || Array.isArray(children)) continue;
-    const child = (children as Record<string, unknown>)[params.runId];
-    if (!child || typeof child !== 'object' || Array.isArray(child)) continue;
-    const baseline = String((child as Record<string, unknown>).time0_baseline_uuid || '').trim();
-    return baseline || null;
+  const plansRoot = path.join(modelDir(params.model), 'plans');
+  let policies: string[];
+  try {
+    policies = fs.readdirSync(plansRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    return null;
+  }
+
+  for (const policy of policies) {
+    const edges = readJsonlObjects(path.join(plansRoot, policy, 'run_edges.jsonl'));
+    for (const edge of edges) {
+      const edgeType = String(edge.edge_type || '').trim();
+      const sourceRunId = String(edge.source_run_id || '').trim();
+      const targetRunId = String(edge.target_run_id || '').trim();
+      if (
+        edgeType === 'intervention_to_time0_baseline'
+        && sourceRunId === params.runId
+        && targetRunId
+      ) {
+        return targetRunId;
+      }
+    }
   }
   return null;
 };
@@ -114,7 +149,7 @@ const baselineUuidFromSampleManifest = (params: {
   model: string;
   runId: string;
 }): string | null => {
-  const payload = readJsonObject(path.join(params.repoRoot, 'tsENV_questions', params.model, 'sample_manifest.json'));
+  const payload = readJsonObject(path.join(tsenvModelDir(params.model), 'sample_manifest.json'));
   for (const rawEntries of Object.values(payload)) {
     if (!Array.isArray(rawEntries)) continue;
     for (const rawEntry of rawEntries) {
@@ -146,8 +181,8 @@ const resolveBaselineDataFile = (params: {
 }) => {
   const baselineId =
     params.source === 'tsenv'
-      ? baselineUuidFromSampleManifest(params) || baselineUuidFromModelRunSpecs(params)
-      : baselineUuidFromModelRunSpecs(params) || baselineUuidFromSampleManifest(params);
+      ? baselineUuidFromSampleManifest(params) || baselineUuidFromPlanEdges(params)
+      : baselineUuidFromPlanEdges(params);
   if (!baselineId || baselineId === params.runId) return null;
   return resolveRunDataFileForSource({
     repoRoot: params.repoRoot,
@@ -212,7 +247,7 @@ const PY_READ_SCRIPT = [
   '    spec.loader.exec_module(module)',
   '    add_noise = getattr(module, "add_noise", None)',
   '    if not callable(add_noise):',
-  "        raise RuntimeError(f'noise_adder.py at {noise_adder_path} does not export add_noise(clean_df, baseline_df, ...).')",
+  "        raise RuntimeError(f'noise_adder.py at {noise_adder_path} does not export add_noise(src, seed, noise_level, ref).')",
   '    if baseline_path is not None:',
   "        baseline_suffix = baseline_path.suffix.lower()",
   "        if baseline_suffix == '.parquet':",
@@ -221,7 +256,7 @@ const PY_READ_SCRIPT = [
   '            baseline_df = pd.read_csv(baseline_path)',
   '        else:',
   "            raise RuntimeError(f'Unsupported baseline data format: {baseline_path}')",
-  '    result = add_noise(clean_df.copy(), baseline_df, seed=noise_seed, noise_level=noise_profile)',
+  '    result = add_noise(clean_df.copy(), seed=noise_seed, noise_level=noise_profile, ref=baseline_df)',
   '    if not isinstance(result, tuple) or len(result) != 2:',
   "        raise RuntimeError('noise_adder.add_noise must return (pandas.DataFrame, noise_analysis).')",
   '    df, _noise_adder_analysis = result',
@@ -406,12 +441,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   const noiseSeed = parseNoiseSeed(searchParams.get('noise_seed'));
   const referenceRun = String(searchParams.get('reference_run') || '').trim();
-  const repoRoot = path.join(process.cwd(), '..');
+  const repoRoot = resolveRepoRoot();
   const resolved = resolveRunDataFile({ repoRoot, model, runId: run });
   if (!resolved) {
-    const runsDirName = String(process.env.WEB_MODEL_EXPLORER_RUNS_DIR_NAME ?? '').trim() || 'runs';
-    const legacyPath = path.join(repoRoot, 'models', 'simulink', model, runsDirName, run);
-    const tsenvPath = path.join(repoRoot, 'tsENV_questions', model, 'dataframes', `${run}.parquet`);
+    const legacyPath = path.join(modelRunsDir(model), run);
+    const tsenvPath = path.join(tsenvModelDir(model), 'dataframes', `${run}.parquet`);
     return NextResponse.json(
       {
         error: `Run '${run}' not found for model '${model}'. Checked '${legacyPath}' (data.parquet/data.csv) and '${tsenvPath}'.`,

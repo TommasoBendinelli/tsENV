@@ -9,15 +9,18 @@ const isRecord = (value: unknown): value is AnyRecord => (
 const asString = (value: unknown) => String(value ?? '').trim();
 
 export type RuntimeHashField =
-  | 'parameters_hash';
+  | 'parameters_hash'
+  | 'recipe_hash';
 
 const RUNTIME_HASH_FIELDS: RuntimeHashField[] = [
+  'recipe_hash',
   'parameters_hash',
 ];
 
 export type NormalizedModelRecord = AnyRecord;
 export type NormalizedRuntimeModelRecord = Record<string, {
   parameters_hash?: string;
+  recipe_hash?: string;
   run_type: 'baseline' | 'intervention' | 'time0_baseline';
   class_internal?: string;
   class_agent_facing_name?: string;

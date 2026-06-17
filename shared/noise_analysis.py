@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping as MappingABC
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Union
 
 import numpy as np
 
@@ -10,7 +10,7 @@ DEFAULT_LOCAL_NOISE_ANALYSIS_RADIUS_ROWS = 5
 DOCUMENTED_LOCAL_NOISE_ANALYSIS_PRE_ROWS = 10
 DOCUMENTED_LOCAL_NOISE_ANALYSIS_POST_ROWS = 30
 SNR_NEG_INF = "-inf"
-SNRValue = float | str | None
+SNRValue = Union[float, str, None]
 
 
 def _signal_columns(df: Any, signal_type: Optional[Mapping[str, Any]] = None) -> list[str]:

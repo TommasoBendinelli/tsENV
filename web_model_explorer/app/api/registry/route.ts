@@ -11,7 +11,9 @@ import {
 import {
   configuredModelArtifactPath,
   listRunDataIdsForModel,
+  resolveRunDataFile,
 } from '../runDataResolver';
+import { modelDir as resolveModelDir } from '../modelExplorerPaths';
 import {
   computeChildParametersHash,
   computeParametersHash,
@@ -65,6 +67,22 @@ type MetricsByBaseline = Record<string, {
   eligible?: boolean;
   children: Record<string, ChildDetectabilitySummary>;
 }>;
+type RegistryPageInfo = {
+  mode: 'page' | 'family' | 'full';
+  page: number;
+  page_size: number;
+  total_families: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+  family_id?: string;
+  run?: string;
+};
+type ResolvedPlanSelection = {
+  includeInterventions: boolean;
+  baselineRunIds?: Set<string>;
+  pageInfo: RegistryPageInfo;
+};
 
 const isRecord = (value: unknown): value is AnyRecord => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -81,6 +99,12 @@ const finiteNumberOrNull = (value: unknown): number | null => {
 const positiveFiniteNumberOrNull = (value: unknown): number | null => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+const parsePositiveInteger = (value: unknown, fallback: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const integer = Math.trunc(parsed);
+  return integer > 0 ? integer : fallback;
 };
 
 const PERSISTED_PARENT_PARAMETERS_FIELD = 'baseline_parameters';
@@ -154,6 +178,526 @@ const readSignalDisplayMapping = (modelDir: string): Record<string, string> => {
   } catch {
     return {};
   }
+};
+
+const readJsonlFile = (filePath: string): AnyRecord[] => {
+  if (!fs.existsSync(filePath)) return [];
+  return fs.readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const payload = JSON.parse(line);
+      if (!isRecord(payload)) {
+        throw new Error(`${filePath}:${index + 1} must be a JSON object`);
+      }
+      return payload;
+    });
+};
+
+const readOptionalJsonFile = (filePath: string): unknown | null => {
+  if (!fs.existsSync(filePath)) return null;
+  return readJsonFile(filePath);
+};
+
+const readRuntimeMapForPlan = (filePath: string): Record<string, RuntimeRecordEntry> => {
+  if (!fs.existsSync(filePath)) return {};
+  const payload = readJsonFile(filePath);
+  if (!isRecord(payload) || Array.isArray(payload)) {
+    throw new Error('model_record.json must be a flat JSON object runtime map.');
+  }
+  const out: Record<string, RuntimeRecordEntry> = {};
+  for (const [runId, rawEntry] of Object.entries(payload)) {
+    if (!isRecord(rawEntry)) continue;
+    out[asString(runId)] = rawEntry as RuntimeRecordEntry;
+  }
+  return out;
+};
+
+const readCheapFilterRecords = (modelDir: string, policy: string) => {
+  const metricsPath = path.join(modelDir, 'metrics', policy, 'cheap_filter_metrics.jsonl');
+  const records = readJsonlFile(metricsPath);
+  const byRun = new Map<string, AnyRecord>();
+  const byFamily = new Map<string, AnyRecord>();
+  for (const record of records) {
+    const recordType = asString(record.record_type);
+    if (recordType === 'run') {
+      const runId = asString(record.run_id);
+      if (runId) byRun.set(runId, record);
+    } else if (recordType === 'family') {
+      const familyId = asString(record.family_id);
+      if (familyId) byFamily.set(familyId, record);
+    }
+  }
+  return { byRun, byFamily, path: fs.existsSync(metricsPath) ? metricsPath : null };
+};
+
+const readSurrogateScoreRecords = (modelDir: string, policy: string) => {
+  const scoresDir = path.join(modelDir, 'metrics', policy, 'surrogate_scores');
+  const byRun = new Map<string, AnyRecord>();
+  const scorePaths: string[] = [];
+  if (!fs.existsSync(scoresDir)) return { byRun, paths: scorePaths };
+  for (const entry of fs.readdirSync(scoresDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+    const filePath = path.join(scoresDir, entry.name);
+    scorePaths.push(filePath);
+    for (const record of readJsonlFile(filePath)) {
+      if (asString(record.record_type) !== 'surrogate_score') continue;
+      const runId = asString(record.run_id);
+      if (!runId) continue;
+      byRun.set(runId, record);
+    }
+  }
+  return { byRun, paths: scorePaths.sort() };
+};
+
+const readSurrogateThresholds = (modelDir: string) => {
+  const surrogatesDir = path.join(modelDir, 'surrogates');
+  const out: Record<string, unknown> = {};
+  if (!fs.existsSync(surrogatesDir)) return out;
+  for (const entry of fs.readdirSync(surrogatesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    const thresholdsPath = path.join(surrogatesDir, entry.name, 'thresholds.json');
+    if (fs.existsSync(thresholdsPath)) out[entry.name] = readOptionalJsonFile(thresholdsPath);
+  }
+  return out;
+};
+
+const summarizeResolvedPlanReport = (report: unknown) => {
+  if (!isRecord(report)) return report;
+  const out: AnyRecord = {};
+  for (const [key, value] of Object.entries(report)) {
+    if (key === 'skipped_parameter_direction_requests' && Array.isArray(value)) {
+      out.skipped_parameter_direction_request_count = value.length;
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+};
+
+const collectModelRecordRunIds = (modelRecord: AnyRecord): Set<string> => {
+  const out = new Set<string>();
+  const baselines = Array.isArray(modelRecord.baselines) ? modelRecord.baselines : [];
+  for (const baseline of baselines) {
+    if (!isRecord(baseline)) continue;
+    const runId = asString(baseline.run_id);
+    if (runId) out.add(runId);
+    const interventions = Array.isArray(baseline.interventions) ? baseline.interventions : [];
+    for (const intervention of interventions) {
+      if (!isRecord(intervention)) continue;
+      const childId = asString(intervention.name ?? intervention.run_id);
+      const time0Id = asString(intervention.time0_baseline_uuid);
+      if (childId) out.add(childId);
+      if (time0Id) out.add(time0Id);
+    }
+  }
+  return out;
+};
+
+const collectSelectedPlanRunIds = (opts: {
+  nodes: AnyRecord[];
+  edges: AnyRecord[];
+  selection: ResolvedPlanSelection;
+}): Set<string> => {
+  const out = new Set<string>();
+  const baselineIds = opts.nodes
+    .filter((node) => asString(node.kind) === 'baseline')
+    .map((node) => asString(node.run_id))
+    .filter((runId) => runId && (!opts.selection.baselineRunIds || opts.selection.baselineRunIds.has(runId)));
+  for (const runId of baselineIds) out.add(runId);
+  const selectedBaselines = new Set(baselineIds);
+  const selectedInterventions = new Set<string>();
+  for (const edge of opts.edges) {
+    if (asString(edge.edge_type) !== 'baseline_to_intervention') continue;
+    const source = asString(edge.source_run_id);
+    const target = asString(edge.target_run_id);
+    if (!selectedBaselines.has(source) || !target) continue;
+    out.add(target);
+    selectedInterventions.add(target);
+  }
+  for (const edge of opts.edges) {
+    if (asString(edge.edge_type) !== 'intervention_to_time0_baseline') continue;
+    const source = asString(edge.source_run_id);
+    const target = asString(edge.target_run_id);
+    if (selectedInterventions.has(source) && target) out.add(target);
+  }
+  return out;
+};
+
+const collectAvailableRunDataIds = (opts: {
+  repoRoot: string;
+  model: string;
+  runIds: Set<string>;
+}) => {
+  const out = new Set<string>();
+  for (const runId of Array.from(opts.runIds)) {
+    if (resolveRunDataFile({ repoRoot: opts.repoRoot, model: opts.model, runId })) out.add(runId);
+  }
+  return out;
+};
+
+const runtimeStatusFromPlanNode = (opts: {
+  node: AnyRecord;
+  runtime: RuntimeRecordEntry | null;
+  availableRunIds: Set<string>;
+}): ValidatedRuntimeStatus & {
+  timestamp: string;
+  end_time_simulation: number | null;
+  error: string | null;
+} => {
+  const runId = asString(opts.node.run_id);
+  const expectedHash = asString(opts.node.recipe_hash).toLowerCase();
+  const runtimeStatus = opts.runtime?.status ?? '';
+  const actualHash = asString(opts.runtime?.recipe_hash ?? opts.runtime?.parameters_hash).toLowerCase();
+  const hasData = opts.availableRunIds.has(runId);
+
+  let status: RunStatus = 'not_run';
+  let stale_reason: ValidatedRuntimeStatus['stale_reason'] | undefined;
+  if (!opts.runtime) {
+    status = hasData ? 'success' : 'not_run';
+  } else if (actualHash && expectedHash && actualHash !== expectedHash) {
+    status = 'not_run';
+    stale_reason = 'hash_mismatch';
+  } else if (runtimeStatus === 'failed') {
+    status = 'failed';
+  } else if (runtimeStatus === 'success') {
+    if (!hasData) {
+      status = 'not_run';
+      stale_reason = 'missing_data';
+    } else {
+      status = 'success';
+    }
+  } else if (hasData && !runtimeStatus) {
+    status = 'success';
+  }
+
+  return {
+    status,
+    stale_reason,
+    timestamp: asString(opts.runtime?.timestamp),
+    end_time_simulation: finiteNumberOrNull(opts.runtime?.end_time_simulation),
+    error: opts.runtime?.error ? asString(opts.runtime.error) : null,
+  };
+};
+
+const copyMetricFields = (target: AnyRecord, metric: AnyRecord | undefined) => {
+  if (!metric) return;
+  for (const key of [
+    'cheap_filter_pass',
+    'family_cheap_filter_pass',
+    'detectability',
+    'snr',
+    'failure_reasons',
+    'ground_truth_label',
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(metric, key)) target[key] = metric[key];
+  }
+};
+
+const copySurrogateFields = (target: AnyRecord, score: AnyRecord | undefined) => {
+  if (!score) return;
+  for (const key of [
+    'surrogate_id',
+    'noise_level',
+    'predicted_label',
+    'true_label_confidence',
+    'max_confidence',
+    'second_best_label',
+    'confidence_margin',
+    'entropy',
+    'surrogate_filter_pass',
+    'thresholds',
+    'failure_reasons',
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(score, key)) target[key] = score[key];
+  }
+};
+
+const mergeRuntimeStatus = (current: RunStatus, next: RunStatus): RunStatus => {
+  if (current === 'failed' || next === 'failed') return 'failed';
+  if (current === 'success' || next === 'success') return 'success';
+  return 'not_run';
+};
+
+const buildResolvedPlanSelection = (opts: {
+  nodes: AnyRecord[];
+  edges: AnyRecord[];
+  searchParams: URLSearchParams;
+}): ResolvedPlanSelection => {
+  const mode = asString(opts.searchParams.get('mode')).toLowerCase();
+  const requestedFamilyId = asString(opts.searchParams.get('family_id'));
+  const requestedRunId = asString(opts.searchParams.get('run'));
+  const baselineNodes = opts.nodes.filter((node) => asString(node.kind) === 'baseline');
+  const baselineIds = baselineNodes.map((node) => asString(node.run_id)).filter(Boolean);
+  const totalFamilies = baselineIds.length;
+  const totalPagesForSize = (pageSize: number) => Math.max(1, Math.ceil(totalFamilies / pageSize));
+
+  const baselineByFamilyId = new Map<string, string>();
+  const baselineByRunId = new Map<string, string>();
+  for (const node of baselineNodes) {
+    const runId = asString(node.run_id);
+    const familyId = asString(node.family_id);
+    if (runId) baselineByRunId.set(runId, runId);
+    if (familyId && runId) baselineByFamilyId.set(familyId, runId);
+  }
+  for (const edge of opts.edges) {
+    if (asString(edge.edge_type) !== 'baseline_to_intervention') continue;
+    const source = asString(edge.source_run_id);
+    const target = asString(edge.target_run_id);
+    if (source && target && baselineByRunId.has(source)) baselineByRunId.set(target, source);
+  }
+  for (const edge of opts.edges) {
+    if (asString(edge.edge_type) !== 'intervention_to_time0_baseline') continue;
+    const source = asString(edge.source_run_id);
+    const target = asString(edge.target_run_id);
+    const baseline = baselineByRunId.get(source);
+    if (baseline && target) baselineByRunId.set(target, baseline);
+  }
+
+  if (mode === 'full') {
+    const pageSize = Math.max(totalFamilies, 1);
+    return {
+      includeInterventions: true,
+      pageInfo: {
+        mode: 'full',
+        page: 1,
+        page_size: pageSize,
+        total_families: totalFamilies,
+        total_pages: 1,
+        has_next: false,
+        has_previous: false,
+      },
+    };
+  }
+
+  if (requestedFamilyId || requestedRunId) {
+    const baselineId = requestedFamilyId
+      ? baselineByFamilyId.get(requestedFamilyId)
+      : baselineByRunId.get(requestedRunId);
+    return {
+      includeInterventions: true,
+      baselineRunIds: baselineId ? new Set([baselineId]) : new Set(),
+      pageInfo: {
+        mode: 'family',
+        page: 1,
+        page_size: baselineId ? 1 : 0,
+        total_families: totalFamilies,
+        total_pages: totalPagesForSize(1),
+        has_next: false,
+        has_previous: false,
+        ...(requestedFamilyId ? { family_id: requestedFamilyId } : {}),
+        ...(requestedRunId ? { run: requestedRunId } : {}),
+      },
+    };
+  }
+
+  const pageSize = Math.min(parsePositiveInteger(opts.searchParams.get('page_size'), 250), 1000);
+  const totalPages = totalPagesForSize(pageSize);
+  const page = Math.min(parsePositiveInteger(opts.searchParams.get('page'), 1), totalPages);
+  const start = (page - 1) * pageSize;
+  const selected = new Set(baselineIds.slice(start, start + pageSize));
+  return {
+    includeInterventions: false,
+    baselineRunIds: selected,
+    pageInfo: {
+      mode: 'page',
+      page,
+      page_size: pageSize,
+      total_families: totalFamilies,
+      total_pages: totalPages,
+      has_next: page < totalPages,
+      has_previous: page > 1,
+    },
+  };
+};
+
+const buildModelRecordFromResolvedPlan = (opts: {
+  model: string;
+  modelDir: string;
+  policy: string;
+  runtimeModelRecord: Record<string, RuntimeRecordEntry>;
+  availableRunIds: Set<string>;
+  defaultSamplingRateHz: number | null;
+  defaultEndTimeInputS: number | null;
+  selection: ResolvedPlanSelection;
+}) => {
+  const planDir = path.join(opts.modelDir, 'plans', opts.policy);
+  const nodes = readJsonlFile(path.join(planDir, 'run_nodes.jsonl'));
+  const edges = readJsonlFile(path.join(planDir, 'run_edges.jsonl'));
+  if (nodes.length === 0) throw new Error(`No run nodes found for policy '${opts.policy}'.`);
+
+  const nodesById = new Map(nodes.map((node) => [asString(node.run_id), node]));
+  const interventionsByBaseline = new Map<string, AnyRecord[]>();
+  const time0ByIntervention = new Map<string, AnyRecord>();
+  for (const edge of edges) {
+    const edgeType = asString(edge.edge_type);
+    const source = asString(edge.source_run_id);
+    const target = asString(edge.target_run_id);
+    if (!source || !target || !nodesById.has(source) || !nodesById.has(target)) continue;
+    if (edgeType === 'baseline_to_intervention') {
+      interventionsByBaseline.set(source, [...(interventionsByBaseline.get(source) ?? []), edge]);
+    } else if (edgeType === 'intervention_to_time0_baseline') {
+      time0ByIntervention.set(source, edge);
+    }
+  }
+
+  const cheapFilter = readCheapFilterRecords(opts.modelDir, opts.policy);
+  const surrogateScores = readSurrogateScoreRecords(opts.modelDir, opts.policy);
+  const generationReport = readOptionalJsonFile(path.join(planDir, 'generation_report.json'));
+  const validationReport = readOptionalJsonFile(path.join(planDir, 'validation_report.json'));
+  const includeFullMetadata = opts.selection.pageInfo.mode === 'full';
+
+  const baselines = nodes
+    .filter((node) => asString(node.kind) === 'baseline')
+    .filter((node) => {
+      if (!opts.selection.baselineRunIds) return true;
+      return opts.selection.baselineRunIds.has(asString(node.run_id));
+    })
+    .map((node) => {
+      const runId = asString(node.run_id);
+      const recipe = isRecord(node.recipe) ? node.recipe : {};
+      const runtime = runtimeStatusFromPlanNode({
+        node,
+        runtime: opts.runtimeModelRecord[runId] ?? null,
+        availableRunIds: opts.availableRunIds,
+      });
+      const familyId = asString(node.family_id);
+      const familyMetric = cheapFilter.byFamily.get(familyId);
+      const baselineMetric = cheapFilter.byRun.get(runId);
+      const baseline: AnyRecord = {
+        run_id: runId,
+        baseline_uuid: runId,
+        family_id: familyId,
+        source: asString((node.metadata as AnyRecord | undefined)?.source),
+        validation_profile: asString((node.metadata as AnyRecord | undefined)?.validation_profile),
+        recipe_hash: asString(node.recipe_hash),
+        parent_id: null,
+        parameters: isRecord(recipe.baseline_parameters) ? recipe.baseline_parameters : {},
+        intervention_time: null,
+        sampling_rate_hz: opts.defaultSamplingRateHz,
+        end_time_input_s: opts.defaultEndTimeInputS,
+        end_time_simulation: runtime.end_time_simulation,
+        error: runtime.error,
+        interventions: [],
+        status: runtime.status,
+        stale_reason: runtime.stale_reason ?? null,
+        timestamp: runtime.timestamp,
+      };
+      if (familyMetric && Object.prototype.hasOwnProperty.call(familyMetric, 'family_cheap_filter_pass')) {
+        baseline.eligible = Boolean(familyMetric.family_cheap_filter_pass);
+      }
+      copyMetricFields(baseline, baselineMetric);
+      copySurrogateFields(baseline, surrogateScores.byRun.get(runId));
+
+      const childEdges = interventionsByBaseline.get(runId) ?? [];
+      baseline.intervention_count = childEdges.length;
+      let aggregateStatus: RunStatus = runtime.status;
+      baseline.interventions = opts.selection.includeInterventions ? childEdges.map((edge) => {
+        const childId = asString(edge.target_run_id);
+        const childNode = nodesById.get(childId) ?? {};
+        const childRecipe = isRecord(childNode.recipe) ? childNode.recipe : {};
+        const childIntervention = isRecord(childRecipe.intervention) ? childRecipe.intervention : {};
+        const time0Edge = time0ByIntervention.get(childId);
+        const time0Id = asString(time0Edge?.target_run_id);
+        const time0Node = time0Id ? (nodesById.get(time0Id) ?? {}) : {};
+        const childRuntime = runtimeStatusFromPlanNode({
+          node: childNode,
+          runtime: opts.runtimeModelRecord[childId] ?? null,
+          availableRunIds: opts.availableRunIds,
+        });
+        const time0Runtime = time0Id
+          ? runtimeStatusFromPlanNode({
+              node: time0Node,
+              runtime: opts.runtimeModelRecord[time0Id] ?? null,
+              availableRunIds: opts.availableRunIds,
+            })
+          : null;
+        const metric = cheapFilter.byRun.get(childId);
+        const child: AnyRecord = {
+          name: childId,
+          run_id: childId,
+          parent_id: runId,
+          family_id: asString(childNode.family_id),
+          depth: 1,
+          intervention_uuid: childId,
+          intervention_time: finiteNumberOrNull(childIntervention.time ?? (edge.metadata as AnyRecord | undefined)?.intervention_time) ?? 0,
+          parameter: asString(childIntervention.parameter),
+          set_value: childIntervention.value,
+          variable: asString(childIntervention.parameter),
+          value: childIntervention.value,
+          direction: asString((edge.metadata as AnyRecord | undefined)?.direction),
+          time0_baseline_uuid: time0Id,
+          time0_status: time0Runtime?.status ?? 'not_run',
+          time0_timestamp: time0Runtime?.timestamp ?? '',
+          time0_stale_reason: time0Runtime?.stale_reason ?? null,
+          time0_recipe_hash: asString(time0Node.recipe_hash),
+          recipe_hash: asString(childNode.recipe_hash),
+          source: asString((childNode.metadata as AnyRecord | undefined)?.source),
+          validation_profile: asString((childNode.metadata as AnyRecord | undefined)?.validation_profile),
+          end_time_input_s: opts.defaultEndTimeInputS,
+          end_time_simulation: childRuntime.end_time_simulation,
+          time0_end_time_simulation: time0Runtime?.end_time_simulation ?? null,
+          detectability_failed: metric
+            ? metric.cheap_filter_pass === false
+            : false,
+          status: childRuntime.status,
+          stale_reason: childRuntime.stale_reason ?? null,
+          timestamp: childRuntime.timestamp,
+        };
+        copyMetricFields(child, metric);
+        copySurrogateFields(child, surrogateScores.byRun.get(childId));
+        aggregateStatus = mergeRuntimeStatus(aggregateStatus, childRuntime.status);
+        if (time0Runtime) aggregateStatus = mergeRuntimeStatus(aggregateStatus, time0Runtime.status);
+        return child;
+      }) : childEdges.map((edge) => {
+        const childId = asString(edge.target_run_id);
+        const childNode = nodesById.get(childId) ?? {};
+        const childRuntime = runtimeStatusFromPlanNode({
+          node: childNode,
+          runtime: opts.runtimeModelRecord[childId] ?? null,
+          availableRunIds: opts.availableRunIds,
+        });
+        aggregateStatus = mergeRuntimeStatus(aggregateStatus, childRuntime.status);
+        const time0Edge = time0ByIntervention.get(childId);
+        const time0Id = asString(time0Edge?.target_run_id);
+        if (time0Id) {
+          const time0Node = nodesById.get(time0Id) ?? {};
+          const time0Runtime = runtimeStatusFromPlanNode({
+            node: time0Node,
+            runtime: opts.runtimeModelRecord[time0Id] ?? null,
+            availableRunIds: opts.availableRunIds,
+          });
+          aggregateStatus = mergeRuntimeStatus(aggregateStatus, time0Runtime.status);
+        }
+        return null;
+      }).filter(Boolean);
+      baseline.aggregate_status = aggregateStatus;
+      baseline.detail_loaded = opts.selection.includeInterventions;
+      if (baseline.interventions.length > 0) {
+        const times = baseline.interventions.map((iv: AnyRecord) => Number(iv.intervention_time));
+        baseline.intervention_time = times.every((value: number) => Number.isFinite(value) && value === times[0])
+          ? times[0]
+          : null;
+      }
+      return baseline;
+    });
+
+  return {
+    version: 1,
+    model_id: opts.model,
+    metadata: {
+      policy_id: opts.policy,
+      generation_report: includeFullMetadata ? generationReport : summarizeResolvedPlanReport(generationReport),
+      validation_report: includeFullMetadata ? validationReport : summarizeResolvedPlanReport(validationReport),
+      metrics: {
+        cheap_filter_metrics_path: cheapFilter.path,
+        surrogate_score_paths: surrogateScores.paths,
+        surrogate_thresholds: includeFullMetadata ? readSurrogateThresholds(opts.modelDir) : {},
+      },
+    },
+    baselines,
+  };
 };
 
 const readConfiguredSignals = (modelDir: string): { configuredSignals: string[]; metadata: any } => {
@@ -548,15 +1092,81 @@ const buildExpectedRuntimeHashFields = (opts: {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const model = asString(searchParams.get('model'));
+  const policy = asString(searchParams.get('policy'));
   if (!model) return NextResponse.json({ error: 'Model required' }, { status: 400 });
 
   const repoRoot = path.join(process.cwd(), '..');
-  const modelDir = path.join(repoRoot, 'models', 'simulink', model);
+  const modelDir = resolveModelDir(model, repoRoot);
   const specsPath = path.join(modelDir, 'model_run_specs.json');
   const registryPath = configuredModelArtifactPath(repoRoot, model, 'model_record.json');
   const experimentConfigPath = getExperimentConfigPath(modelDir);
 
   try {
+    if (policy) {
+      const planDir = path.join(modelDir, 'plans', policy);
+      if (!fs.existsSync(path.join(planDir, 'run_nodes.jsonl'))) {
+        return NextResponse.json({ error: `run_nodes.jsonl not found for policy '${policy}'` }, { status: 404 });
+      }
+      if (!fs.existsSync(path.join(planDir, 'run_edges.jsonl'))) {
+        return NextResponse.json({ error: `run_edges.jsonl not found for policy '${policy}'` }, { status: 404 });
+      }
+
+      const experimentConfig = fs.existsSync(experimentConfigPath)
+        ? readJsonFile(experimentConfigPath)
+        : null;
+      if (experimentConfig) {
+        assertValidAgainstSharedSchema('experiment_config.schema.json', experimentConfig);
+      }
+      const defaultSamplingRateHz: number | null = positiveFiniteNumberOrNull((experimentConfig as any)?.sampling_rate_hz);
+      const defaultEndTimeInputS: number | null = positiveFiniteNumberOrNull((experimentConfig as any)?.end_time_input_s);
+      if (defaultEndTimeInputS === null) {
+        throw new Error(`Missing end_time_input_s in experiment_config.json for model '${model}'.`);
+      }
+      if (defaultSamplingRateHz === null) {
+        throw new Error(`Missing sampling_rate_hz in experiment_config.json for model '${model}'.`);
+      }
+      const runtimeModelRecord = readRuntimeMapForPlan(registryPath);
+      const nodes = readJsonlFile(path.join(planDir, 'run_nodes.jsonl'));
+      const edges = readJsonlFile(path.join(planDir, 'run_edges.jsonl'));
+      const selection = buildResolvedPlanSelection({ nodes, edges, searchParams });
+      if (selection.pageInfo.mode === 'family' && selection.baselineRunIds?.size === 0) {
+        return NextResponse.json(
+          { error: `No family found for ${searchParams.get('family_id') ? 'family_id' : 'run'}.` },
+          { status: 404 }
+        );
+      }
+      const selectedPlanRunIds = collectSelectedPlanRunIds({ nodes, edges, selection });
+      const availableRunIds = selection.pageInfo.mode === 'full'
+        ? new Set(listRunDataIdsForModel({ repoRoot, model }))
+        : collectAvailableRunDataIds({ repoRoot, model, runIds: selectedPlanRunIds });
+      const modelRecord = buildModelRecordFromResolvedPlan({
+        model,
+        modelDir,
+        policy,
+        runtimeModelRecord,
+        availableRunIds,
+        defaultSamplingRateHz,
+        defaultEndTimeInputS,
+        selection,
+      });
+      const { configuredSignals, metadata } = readConfiguredSignals(modelDir);
+      const signalDisplayNames = readSignalDisplayMapping(modelDir);
+      const availableNoiseProfiles = readAvailableNoiseProfiles(modelDir);
+      const visibleRunIds = collectModelRecordRunIds(modelRecord);
+      const responseDiskRuns = Array.from(availableRunIds)
+        .filter((runId) => selection.pageInfo.mode === 'full' || visibleRunIds.has(runId))
+        .sort();
+      return NextResponse.json({
+        modelRecord,
+        diskRuns: responseDiskRuns,
+        signalDisplayNames,
+        availableNoiseProfiles,
+        availableSignals: configuredSignals.slice(),
+        registryPage: selection.pageInfo,
+        metadata,
+      });
+    }
+
     if (!fs.existsSync(specsPath)) {
       return NextResponse.json({ error: 'model_run_specs.json not found for model' }, { status: 404 });
     }

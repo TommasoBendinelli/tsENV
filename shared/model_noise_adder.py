@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import importlib.util
 from pathlib import Path
 from types import ModuleType
@@ -59,10 +60,20 @@ def _validate_noise_adder_module(module: ModuleType, *, source: Path) -> Callabl
         raise TypeError(
             f"noise_adder.py at {source} does not export quantify_noise(clean, noisy, baseline)."
         )
+    if list(inspect.signature(quantify_noise).parameters) != ["clean", "noisy", "reference"]:
+        raise TypeError(
+            f"noise_adder.py at {source} quantify_noise must have "
+            "(clean, noisy, reference)."
+        )
     add_noise = getattr(module, "add_noise", None)
     if not callable(add_noise):
         raise TypeError(
-            f"noise_adder.py at {source} does not export add_noise(clean, baseline, ...)."
+            f"noise_adder.py at {source} does not export add_noise(src, seed, noise_level, ref)."
+        )
+    if list(inspect.signature(add_noise).parameters) != ["src", "seed", "noise_level", "ref"]:
+        raise TypeError(
+            f"noise_adder.py at {source} add_noise must have "
+            "(src, seed, noise_level, ref)."
         )
     return add_noise
 
@@ -102,9 +113,9 @@ def call_noise_adder(
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     result = add_noise(
         df.copy(),
-        baseline_df.copy() if hasattr(baseline_df, "copy") else baseline_df,
         seed=int(seed),
         noise_level=str(noise_level),
+        ref=baseline_df.copy() if hasattr(baseline_df, "copy") else baseline_df,
     )
     if not isinstance(result, tuple) or len(result) != 2:
         raise TypeError(

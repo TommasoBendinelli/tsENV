@@ -30,10 +30,8 @@ export interface ImpulseLikeDetectabilityConfig {
 export interface DetectabilityConfig {
   continuous: ContinuousDetectabilityConfig;
   impulse_like: ImpulseLikeDetectabilityConfig;
-  signal_to_noise_ratio_db_thresholds?: Record<string, SignalToNoiseRatioThresholdPair>;
+  RMS_thresholds: Record<string, number>;
 }
-
-export type SignalToNoiseRatioThresholdPair = (number)[];
 
 export type IntervalRange = (number)[];
 
@@ -61,6 +59,7 @@ export interface ExposedVariablesConfig {
 }
 
 export interface SchemaRoot {
+  paper_facing_name: string;
   exposed_variables: ExposedVariablesConfig;
   sampling_rate_hz: number;
   end_time_input_s: number;

@@ -41,7 +41,13 @@ def validate_experiment_config_schema(payload: Any) -> None:
         if isinstance(detectability, Mapping) and "signal_to_ratio" in detectability:
             raise ExperimentConfigSchemaError(
                 "experiment_config.json uses legacy detectability.signal_to_ratio; "
-                "use detectability.signal_to_noise_ratio_db_thresholds instead"
+                "use detectability.RMS_thresholds instead"
+            )
+        if isinstance(detectability, Mapping) and "signal_to_noise_ratio_db_thresholds" in detectability:
+            raise ExperimentConfigSchemaError(
+                "experiment_config.json uses legacy "
+                "detectability.signal_to_noise_ratio_db_thresholds; "
+                "use detectability.RMS_thresholds instead"
             )
     try:
         _schema_validator().validate(payload)
@@ -248,40 +254,22 @@ class DetectabilityConfig(BaseModel):
 
     continuous: ContinuousDetectabilityConfig
     impulse_like: ImpulseLikeDetectabilityConfig
-    signal_to_noise_ratio_db_thresholds: Dict[str, Tuple[float, float]] = Field(
-        default_factory=dict
-    )
+    RMS_thresholds: Dict[str, float]
 
-    @field_validator("signal_to_noise_ratio_db_thresholds", mode="before")
+    @field_validator("RMS_thresholds", mode="before")
     @classmethod
-    def _coerce_signal_to_noise_ratio_db_thresholds(
-        cls, value: Any
-    ) -> Dict[str, Tuple[float, float]]:
-        if value is None:
-            return {}
+    def _coerce_rms_thresholds(cls, value: Any) -> Dict[str, float]:
         if not isinstance(value, Mapping):
-            raise ValueError("signal_to_noise_ratio_db_thresholds must be an object")
-        out: Dict[str, Tuple[float, float]] = {}
-        for raw_signal, raw_thresholds in value.items():
+            raise ValueError("RMS_thresholds must be an object")
+        out: Dict[str, float] = {}
+        for raw_signal, raw_threshold in value.items():
             signal = str(raw_signal).strip()
             if not signal:
-                raise ValueError(
-                    "signal_to_noise_ratio_db_thresholds keys must be non-empty"
-                )
-            if (
-                not isinstance(raw_thresholds, (list, tuple))
-                or len(raw_thresholds) != 2
-            ):
-                raise ValueError(
-                    "signal_to_noise_ratio_db_thresholds values must be [low_db, high_db]"
-                )
-            low = float(raw_thresholds[0])
-            high = float(raw_thresholds[1])
-            if not math.isfinite(low) or not math.isfinite(high):
-                raise ValueError(
-                    "signal_to_noise_ratio_db_thresholds thresholds must be finite"
-                )
-            out[signal] = (low, high)
+                raise ValueError("RMS_thresholds keys must be non-empty")
+            threshold = float(raw_threshold)
+            if not math.isfinite(threshold) or threshold < 0.0:
+                raise ValueError("RMS_thresholds values must be finite and >= 0")
+            out[signal] = threshold
         return out
 
 
@@ -290,6 +278,7 @@ class DistributionJson(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    paper_facing_name: str
     exposed_variables: ExposedVariablesConfig
     sampling_rate_hz: float
     end_time_input_s: float
@@ -303,6 +292,14 @@ class DistributionJson(BaseModel):
         if parsed <= 0:
             raise ValueError("configuration value must be > 0")
         return parsed
+
+    @field_validator("paper_facing_name", mode="before")
+    @classmethod
+    def _coerce_paper_facing_name(cls, value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError("paper_facing_name must be non-empty")
+        return text
 
     @property
     def observable_signal_names(self) -> list[str]:

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getExperimentConfigPath } from './experimentConfigFile';
 import { assertValidAgainstSharedSchema } from '../sharedSchemaAjv';
+import { modelDir as resolveModelDir } from '../modelExplorerPaths';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -11,17 +12,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Model required' }, { status: 400 });
   }
 
-  const modelDir = path.join(process.cwd(), '..', 'models', 'simulink', model);
+  const modelDir = resolveModelDir(model);
   const experimentConfigPath = getExperimentConfigPath(modelDir);
-  const metadataPath = path.join(
-    process.cwd(),
-    '..',
-    'models',
-    'simulink',
-    model,
-    'generated',
-    'metadata.json'
-  );
+  const metadataPath = path.join(modelDir, 'generated', 'metadata.json');
   try {
     let distribution: any = null;
     if (fs.existsSync(experimentConfigPath)) {

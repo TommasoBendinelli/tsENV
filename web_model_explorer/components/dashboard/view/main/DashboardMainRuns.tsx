@@ -188,6 +188,8 @@ export function DashboardMainRuns() {
   const selectedModel = useDashboardStore((state) => state.selectedModel);
   const modelRecord = useDashboardStore((state) => state.modelRecord);
   const registry = modelRecord?.baselines ?? [];
+  const registryPage = useDashboardStore((state) => state.registryPage);
+  const loadingFamilyIds = useDashboardStore((state) => state.loadingFamilyIds);
   const runsData = useDashboardStore((state) => state.runsData);
   const selectedRunIds = useDashboardStore((state) => state.selectedRunIds);
   const selectedSignals = useDashboardStore((state) => state.selectedSignals);
@@ -211,6 +213,8 @@ export function DashboardMainRuns() {
 
   const {
     handleVisibleSignalsChange,
+    handleRegistryPageChange,
+    ensureFamilyDetailsLoaded,
     hasRunData,
     toggleRunVisualization,
     toggleRunVisualizationGroup,
@@ -268,17 +272,18 @@ export function DashboardMainRuns() {
     }
   }, [setExpandedInterventions, setSelectedRunIds]);
 
-  const toggleBaselineExpansion = React.useCallback((baseline: any) => {
+  const toggleBaselineExpansion = React.useCallback(async (baseline: any) => {
     const baselineId = String(baseline?.run_id || '').trim();
     if (!baselineId) return;
     if (expandedInterventions.includes(baselineId)) {
       collapseBaselineSubtree(baseline);
       return;
     }
+    await ensureFamilyDetailsLoaded(baseline);
     setExpandedInterventions((prev) => (
       prev.includes(baselineId) ? prev : [...prev, baselineId]
     ));
-  }, [collapseBaselineSubtree, expandedInterventions, setExpandedInterventions]);
+  }, [collapseBaselineSubtree, ensureFamilyDetailsLoaded, expandedInterventions, setExpandedInterventions]);
 
   const commitNoiseSeedValue = React.useCallback((value: string) => {
     const rawValue = value.trim();
@@ -314,6 +319,37 @@ export function DashboardMainRuns() {
     <>
       <section className="space-y-3">
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          {registryPage?.mode === 'page' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-gray-50 px-4 py-2 text-xs text-gray-500">
+              <span className="font-medium">
+                Families {registryPage.total_families === 0 ? 0 : ((registryPage.page - 1) * registryPage.page_size) + 1}
+                {'-'}
+                {Math.min(registryPage.page * registryPage.page_size, registryPage.total_families)}
+                {' '}of {registryPage.total_families}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded border bg-white px-2 py-1 font-semibold text-gray-600 disabled:opacity-40"
+                  disabled={!registryPage.has_previous}
+                  onClick={() => void handleRegistryPageChange(registryPage.page - 1)}
+                >
+                  Previous
+                </button>
+                <span className="font-mono text-[11px]">
+                  Page {registryPage.page} / {registryPage.total_pages}
+                </span>
+                <button
+                  type="button"
+                  className="rounded border bg-white px-2 py-1 font-semibold text-gray-600 disabled:opacity-40"
+                  disabled={!registryPage.has_next}
+                  onClick={() => void handleRegistryPageChange(registryPage.page + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
           <div className="overflow-auto max-h-[calc(100vh-520px)]">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-400 uppercase text-[10px] font-bold tracking-wider border-b sticky top-0 z-10">
@@ -321,6 +357,9 @@ export function DashboardMainRuns() {
                   <th className="px-4 py-3 w-24 text-center">Status</th>
                   <th className="px-4 py-3 w-28 text-center">Eligible</th>
                   <th className="px-4 py-3 w-56 min-w-[220px]">Run ID</th>
+                  <th className="px-4 py-3 w-56 min-w-[220px]">Family ID</th>
+                  <th className="px-4 py-3 w-32">Source</th>
+                  <th className="px-4 py-3 w-40">Recipe Hash</th>
                   {parameterColumnKeys.map((k) => (
                     <th key={k} className="px-4 py-3 font-mono text-gray-500">
                       <span className="text-left">{k}</span>
@@ -339,14 +378,19 @@ export function DashboardMainRuns() {
                   const childRunIds = r.interventions.map(iv => iv.name);
                   const plottableSubtreeIds = collectBaselineSubtreeRunIds(r).filter((id) => hasRunData(id));
                   const childStatuses = r.interventions.map((iv) => normalizeStatus((iv as any)?.status));
+                  const explicitAggregateStatus = normalizeStatus((r as any)?.aggregate_status);
                   const hasFailure = normalizeStatus((r as any)?.status) === 'failed' || childStatuses.some((status) => status === 'failed');
                   const hasSuccess = normalizeStatus((r as any)?.status) === 'success' || childStatuses.some((status) => status === 'success');
-                  const aggregateStatus = hasFailure ? 'failed' : hasSuccess ? 'success' : 'not_run';
+                  const aggregateStatus = (r as any)?.aggregate_status ? explicitAggregateStatus : hasFailure ? 'failed' : hasSuccess ? 'success' : 'not_run';
                   const isSelected = selectedRunIdSet.has(String(r.run_id || '').trim())
                     || plottableSubtreeIds.some((id) => selectedRunIdSet.has(String(id || '').trim()));
                   const isExpanded = expandedInterventions.includes(r.run_id);
-                  const childCount = new Set(childRunIds).size;
+                  const childCount = Number.isFinite(Number((r as any)?.intervention_count))
+                    ? Math.max(0, Math.trunc(Number((r as any).intervention_count)))
+                    : new Set(childRunIds).size;
                   const eligibility = resolveBaselineEligibility(r);
+                  const familyId = String((r as any)?.family_id || '').trim();
+                  const isFamilyLoading = [familyId, String(r.run_id || '').trim()].some((id) => loadingFamilyIds.includes(id));
 
                   return (
                     <React.Fragment key={`${r.timestamp}-${i}`}>
@@ -357,7 +401,7 @@ export function DashboardMainRuns() {
                         )}
                         onClick={(event) => {
                           if (shouldIgnoreRowClick(event.target)) return;
-                          toggleBaselineExpansion(r);
+                          void toggleBaselineExpansion(r);
                         }}
                       >
                         <td className="px-4 py-2 text-center">
@@ -381,6 +425,24 @@ export function DashboardMainRuns() {
                         >
                           <span title={r.run_id} className="truncate block w-full select-text cursor-text">
                             {r.run_id}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-500 cursor-text">
+                          <span title={(r as any).family_id || ''} className="truncate block w-56 select-text">
+                            {(r as any).family_id || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-500">
+                          <div className="flex flex-col gap-0.5">
+                            <span>{(r as any).source || '—'}</span>
+                            {(r as any).validation_profile && (
+                              <span className="font-mono text-[10px] text-gray-400">{(r as any).validation_profile}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-500 cursor-text">
+                          <span title={(r as any).recipe_hash || ''} className="truncate block w-36 select-text">
+                            {(r as any).recipe_hash || '—'}
                           </span>
                         </td>
                         {parameterColumnKeys.map(k => (
@@ -417,7 +479,7 @@ export function DashboardMainRuns() {
                             <button
                               onClick={(event) => {
                                 event.stopPropagation();
-                                toggleBaselineExpansion(r);
+                                void toggleBaselineExpansion(r);
                               }}
                               className={cn("p-1.5 rounded-lg transition-all", isExpanded ? "text-blue-600 bg-blue-50" : "text-gray-400 hover:bg-gray-100")}
                               title="Show interventions"
@@ -429,7 +491,7 @@ export function DashboardMainRuns() {
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={4 + totalVariableColumnCount} className="px-12 py-3 bg-gray-50/50">
+                          <td colSpan={7 + totalVariableColumnCount} className="px-12 py-3 bg-gray-50/50">
                             <div className="space-y-3">
                               <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-b pb-1">
                                 <Clock size={12} /> Simulation Steps & Interventions
@@ -453,7 +515,10 @@ export function DashboardMainRuns() {
                                 <span className="font-mono text-xs text-gray-500 truncate">{r.run_id}</span>
                                 <StatusPill status={normalizeStatus((r as any)?.status)} />
                               </div>
-                              {r.interventions.map((iv) => {
+                              {isFamilyLoading && (
+                                <p className="text-xs text-gray-400 italic py-2">Loading interventions...</p>
+                              )}
+                              {!isFamilyLoading && r.interventions.map((iv) => {
                                 const time0BaselineRunId = String((iv as any)?.time0_baseline_uuid || '').trim();
                                 const childNotDetectable = (iv as any)?.detectability_failed === true;
                                 return (
@@ -477,9 +542,27 @@ export function DashboardMainRuns() {
                                     <span className="text-xs text-gray-500">
                                       {String(iv.variable)} = {String(iv.value)}
                                     </span>
+                                    {(iv as any).direction && (
+                                      <span className="text-xs text-gray-400">
+                                        {(iv as any).direction}
+                                      </span>
+                                    )}
                                     <span className="text-xs text-gray-400">
                                       t={formatNumericSignificantDigits(iv.intervention_time, numericSignificantDigits)}
                                     </span>
+                                    {(iv as any).surrogate_filter_pass !== undefined && (
+                                      <span
+                                        className={cn(
+                                          "rounded-md border px-2 py-1 text-[10px] font-semibold",
+                                          (iv as any).surrogate_filter_pass
+                                            ? "border-green-200 bg-green-50 text-green-700"
+                                            : "border-red-200 bg-red-50 text-red-700"
+                                        )}
+                                        title={`surrogate_id=${(iv as any).surrogate_id || ''}; confidence=${(iv as any).true_label_confidence ?? ''}; margin=${(iv as any).confidence_margin ?? ''}`}
+                                      >
+                                        surrogate
+                                      </span>
+                                    )}
                                     {time0BaselineRunId && (
                                       <button
                                         onClick={() => hasRunData(time0BaselineRunId) && void toggleRunVisualization(time0BaselineRunId)}
@@ -501,7 +584,7 @@ export function DashboardMainRuns() {
                                   </div>
                                 );
                               })}
-                              {r.interventions.length === 0 && (
+                              {!isFamilyLoading && r.interventions.length === 0 && (
                                 <p className="text-xs text-gray-400 italic py-2">No timed interventions defined for this run.</p>
                               )}
                             </div>

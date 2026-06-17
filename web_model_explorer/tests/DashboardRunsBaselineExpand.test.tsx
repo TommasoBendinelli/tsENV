@@ -25,6 +25,8 @@ beforeEach(() => {
     selectedNoiseProfile: 'none',
     availableSignals: [],
     expandedInterventions: [],
+    registryPage: null,
+    loadingFamilyIds: [],
     bulkTimeByRunId: {},
     selectedRunRowIds: [],
     selectedParamKeys: [],
@@ -300,6 +302,9 @@ test('runs table orders columns as Status Eligible Run ID parameters initial sta
     'Status',
     'Eligible',
     'Run ID',
+    'Family ID',
+    'Source',
+    'Recipe Hash',
     'mass',
     'drag_coeff',
     'initial_height',
@@ -309,6 +314,64 @@ test('runs table orders columns as Status Eligible Run ID parameters initial sta
   expect(headers).not.toContain('Hz');
   expect(headers).not.toContain('Ending Time');
   expect(headers).not.toContain('Measured');
+});
+
+test('runs table renders registry pagination controls and requests next page', async () => {
+  const user = userEvent.setup();
+  const handleRegistryPageChange = vi.fn(async () => {});
+  useDashboardStore.setState({
+    registryPage: {
+      mode: 'page',
+      page: 2,
+      page_size: 250,
+      total_families: 1000,
+      total_pages: 4,
+      has_next: true,
+      has_previous: true,
+    },
+  });
+
+  renderRuns({ handleRegistryPageChange });
+
+  expect(screen.getByText(/Families 251-500 of 1000/i)).toBeInTheDocument();
+  expect(screen.getByText(/Page 2 \/ 4/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /Next/i }));
+
+  expect(handleRegistryPageChange).toHaveBeenCalledWith(3);
+});
+
+test('expanding unloaded paged baseline fetches family details first', async () => {
+  const user = userEvent.setup();
+  const ensureFamilyDetailsLoaded = vi.fn(async (baseline: any) => baseline);
+  useDashboardStore.setState({
+    modelRecord: {
+      version: 1,
+      model_id: 'ModelA',
+      metadata: {},
+      baselines: [
+        {
+          run_id: '1',
+          family_id: 'fam_1',
+          parent_id: null,
+          parameters: { x: 0 },
+          intervention_count: 1,
+          interventions: [],
+          status: 'success',
+          timestamp: 'r1',
+        } as any,
+      ],
+    } as any,
+  });
+
+  renderRuns({ ensureFamilyDetailsLoaded });
+
+  await act(async () => {
+    await user.click(screen.getByTitle('1').closest('tr')!);
+  });
+
+  expect(ensureFamilyDetailsLoaded).toHaveBeenCalledTimes(1);
+  expect(useDashboardStore.getState().expandedInterventions).toEqual(['1']);
 });
 
 test('runs table renders Eligible from baseline eligibility metrics', () => {

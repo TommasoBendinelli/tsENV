@@ -741,6 +741,57 @@ def simulate_recipe(
     Dict[str, Dict[str, np.ndarray]],
     Tuple[Dict[str, Dict[str, np.ndarray]], Dict[str, Any]],
 ]:
+    prepared = prepare_simulation_case(
+        recipe,
+        observable_signals,
+        metadata=metadata,
+        internal_sampling_rate_hz=internal_sampling_rate_hz,
+        sampling_rate_hz=sampling_rate_hz,
+        all_signal_names=all_signal_names,
+        initial_state=initial_state,
+        modifications=modifications,
+    )
+    debug_dir_cm = nullcontext(run_dir / "debug") if debug else TemporaryDirectory(
+        prefix="tsenv-sim-debug-"
+    )
+    with debug_dir_cm as debug_dir_root:
+        debug_dir = Path(debug_dir_root)
+        all_signal_dict = run_prepared_simulation_case(
+            prepared,
+            matlab_engine=matlab_engine,
+            debug_dir=debug_dir,
+            sim_script=sim_script,
+            runtime_model_snapshot_path=runtime_model_snapshot_path,
+            debug=debug,
+            timing_callback=timing_callback,
+        )
+        return finalize_simulation_case_result(
+            recipe,
+            observable_signals,
+            all_signal_dict,
+            run_dir=run_dir,
+            configured_end_time_input_s=prepared["configured_end_time_input_s"],
+            feature_model_dir=feature_model_dir,
+            return_features=return_features,
+            debug=debug,
+            debug_dir=debug_dir,
+            timing_callback=timing_callback,
+            compute_features=compute_features,
+            feature_names=feature_names,
+        )
+
+
+def prepare_simulation_case(
+    recipe: Dict[str, Any],
+    observable_signals: Sequence[str],
+    *,
+    metadata: Dict[str, Any],
+    internal_sampling_rate_hz: Optional[float] = None,
+    sampling_rate_hz: float,
+    all_signal_names: Optional[Sequence[str]] = None,
+    initial_state: Optional[Any] = None,
+    modifications: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     sim_module = _simulate_core_module()
     baseline_parameters = recipe.get("baseline_parameters")
     if not isinstance(baseline_parameters, Mapping):
@@ -841,61 +892,99 @@ def simulate_recipe(
         all_params,
         modifications_to_apply=modifications if modifications else None,
     )
-    debug_dir_cm = nullcontext(run_dir / "debug") if debug else TemporaryDirectory(
-        prefix="tsenv-sim-debug-"
+    return {
+        "internal_recipe": internal_recipe,
+        "tvp": tvp,
+        "simscape_signals": simscape_signals,
+        "simulink_signals": simulink_signals,
+        "configured_end_time_input_s": float(configured_end_time_input_s),
+        "runtime_end_time_input_s": float(runtime_end_time_input_s),
+    }
+
+
+def run_prepared_simulation_case(
+    prepared: Mapping[str, Any],
+    *,
+    matlab_engine: Any,
+    debug_dir: Path,
+    sim_script: Path,
+    runtime_model_snapshot_path: Optional[Path] = None,
+    debug: bool = False,
+    timing_callback: Optional[TimingCallback] = None,
+) -> Dict[str, Dict[str, np.ndarray]]:
+    sim_module = _simulate_core_module()
+    return sim_module._simulate_case_to_signal_dict(
+        matlab_engine,
+        dict(prepared["internal_recipe"]),
+        tvp=prepared["tvp"],
+        debug_dir=debug_dir,
+        expected_stop_time=float(prepared["runtime_end_time_input_s"]),
+        sim_script=sim_script,
+        simscape_signals=list(prepared["simscape_signals"]),
+        simulink_signals=list(prepared["simulink_signals"]),
+        runtime_model_snapshot_path=runtime_model_snapshot_path,
+        save_simscape_mat=False,
+        debug=debug,
+        timing_callback=timing_callback,
     )
-    with debug_dir_cm as debug_dir_root:
-        debug_dir = Path(debug_dir_root)
-        all_signal_dict = sim_module._simulate_case_to_signal_dict(
-            matlab_engine,
-            internal_recipe,
-            tvp=tvp,
-            debug_dir=debug_dir,
-            expected_stop_time=float(runtime_end_time_input_s),
-            sim_script=sim_script,
-            simscape_signals=simscape_signals,
-            simulink_signals=simulink_signals,
-            runtime_model_snapshot_path=runtime_model_snapshot_path,
-            save_simscape_mat=False,
-            debug=debug,
-            timing_callback=timing_callback,
+
+
+def finalize_simulation_case_result(
+    recipe: Dict[str, Any],
+    observable_signals: Sequence[str],
+    all_signal_dict: Mapping[str, Any],
+    *,
+    run_dir: Path,
+    configured_end_time_input_s: float,
+    feature_model_dir: Optional[Path] = None,
+    return_features: bool = False,
+    debug: bool = False,
+    debug_dir: Optional[Path] = None,
+    timing_callback: Optional[TimingCallback] = None,
+    compute_features: bool = True,
+    feature_names: Optional[Sequence[str]] = None,
+) -> Union[
+    Dict[str, Dict[str, np.ndarray]],
+    Tuple[Dict[str, Dict[str, np.ndarray]], Dict[str, Any]],
+]:
+    returned_signal_dict = {
+        signal: all_signal_dict[signal]
+        for signal in observable_signals
+        if signal in all_signal_dict
+    }
+    feature_dict: Dict[str, Any] = {}
+    if compute_features:
+        feature_signal_dict = _slice_signal_dict_before_end_time(
+            returned_signal_dict,
+            end_time_input_s=float(configured_end_time_input_s),
         )
-        returned_signal_dict = {
-            signal: all_signal_dict[signal]
-            for signal in observable_signals
-            if signal in all_signal_dict
-        }
-        feature_dict: Dict[str, Any] = {}
-        if compute_features:
-            feature_signal_dict = _slice_signal_dict_before_end_time(
-                returned_signal_dict,
-                end_time_input_s=float(configured_end_time_input_s),
+        with _timed_phase(
+            timing_callback,
+            "compute_problem_specific_features",
+            run_id=str(recipe.get("run_id") or recipe.get("id") or ""),
+        ):
+            feature_dict = compute_problem_specific_features(
+                feature_signal_dict,
+                model_dir=feature_model_dir,
+                feature_names=feature_names,
             )
-            with _timed_phase(
-                timing_callback,
-                "compute_problem_specific_features",
-                run_id=str(recipe.get("run_id") or recipe.get("id") or ""),
-            ):
-                feature_dict = compute_problem_specific_features(
-                    feature_signal_dict,
-                    model_dir=feature_model_dir,
-                    feature_names=feature_names,
-                )
-        if debug:
-            input_signals_path = debug_dir / "input_signals.mat"
-            if not input_signals_path.exists():
-                raise FileNotFoundError(
-                    "Debug simulation is missing expected MATLAB artifact "
-                    f"'{input_signals_path}'."
-                )
-            raw_simulation_output_path = debug_dir / "raw_simulation.pickle"
-            raw_simulation_output_path.parent.mkdir(parents=True, exist_ok=True)
-            with raw_simulation_output_path.open("wb") as handle:
-                pickle.dump(
-                    returned_signal_dict,
-                    handle,
-                    protocol=pickle.HIGHEST_PROTOCOL,
-                )
+    if debug:
+        if debug_dir is None:
+            raise ValueError("debug_dir is required when debug=True")
+        input_signals_path = Path(debug_dir) / "input_signals.mat"
+        if not input_signals_path.exists():
+            raise FileNotFoundError(
+                "Debug simulation is missing expected MATLAB artifact "
+                f"'{input_signals_path}'."
+            )
+        raw_simulation_output_path = Path(debug_dir) / "raw_simulation.pickle"
+        raw_simulation_output_path.parent.mkdir(parents=True, exist_ok=True)
+        with raw_simulation_output_path.open("wb") as handle:
+            pickle.dump(
+                returned_signal_dict,
+                handle,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
     if return_features:
         return returned_signal_dict, feature_dict
     return returned_signal_dict
@@ -1060,8 +1149,11 @@ __all__ = [
     "SimulateCaseFn",
     "compute_problem_specific_features",
     "dataframe_to_signal_dict",
+    "finalize_simulation_case_result",
+    "prepare_simulation_case",
     "resample_dataframe",
     "resample_signal_dict",
+    "run_prepared_simulation_case",
     "save_feature_dict",
     "serialize",
     "signal_dict_to_dataframe",

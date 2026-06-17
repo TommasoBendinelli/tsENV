@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type {
   ModelRecord,
+  RegistryPageInfo,
   SamplingSpec,
 } from './types';
 
@@ -25,8 +26,12 @@ type DashboardState = {
   models: string[];
   modelValidation: Record<string, { ok: boolean; reasons: string[] }>;
   selectedModel: string;
+  policies: string[];
+  selectedPolicy: string;
   modelRecord: ModelRecord | null;
   originalModelRecord: ModelRecord | null;
+  registryPage: RegistryPageInfo | null;
+  loadingFamilyIds: string[];
   diskRuns: string[];
   loading: boolean;
   simulating: boolean;
@@ -64,8 +69,12 @@ type DashboardActions = {
   setModels: (next: Setter<string[]>) => void;
   setModelValidation: (next: Setter<DashboardState['modelValidation']>) => void;
   setSelectedModel: (next: Setter<string>) => void;
+  setPolicies: (next: Setter<string[]>) => void;
+  setSelectedPolicy: (next: Setter<string>) => void;
   setModelRecord: (next: Setter<ModelRecord | null>) => void;
   setOriginalModelRecord: (next: Setter<ModelRecord | null>) => void;
+  setRegistryPage: (next: Setter<RegistryPageInfo | null>) => void;
+  setLoadingFamilyIds: (next: Setter<string[]>) => void;
   setDiskRuns: (next: Setter<string[]>) => void;
   setLoading: (next: Setter<boolean>) => void;
   setSimulating: (next: Setter<boolean>) => void;
@@ -103,8 +112,12 @@ export const useDashboardStore = create<DashboardState & DashboardActions>((set)
   models: [],
   modelValidation: {},
   selectedModel: '',
+  policies: [],
+  selectedPolicy: '',
   modelRecord: null,
   originalModelRecord: null,
+  registryPage: null,
+  loadingFamilyIds: [],
   diskRuns: [],
   loading: false,
   simulating: false,
@@ -142,9 +155,17 @@ export const useDashboardStore = create<DashboardState & DashboardActions>((set)
     set((state) => ({ modelValidation: resolveSetter(next, state.modelValidation) })),
   setSelectedModel: (next) =>
     set((state) => ({ selectedModel: resolveSetter(next, state.selectedModel) })),
+  setPolicies: (next) =>
+    set((state) => ({ policies: resolveSetter(next, state.policies) })),
+  setSelectedPolicy: (next) =>
+    set((state) => ({ selectedPolicy: resolveSetter(next, state.selectedPolicy) })),
   setModelRecord: (next) => set((state) => ({ modelRecord: resolveSetter(next, state.modelRecord) })),
   setOriginalModelRecord: (next) =>
     set((state) => ({ originalModelRecord: resolveSetter(next, state.originalModelRecord) })),
+  setRegistryPage: (next) =>
+    set((state) => ({ registryPage: resolveSetter(next, state.registryPage) })),
+  setLoadingFamilyIds: (next) =>
+    set((state) => ({ loadingFamilyIds: resolveSetter(next, state.loadingFamilyIds) })),
   setDiskRuns: (next) => set((state) => ({ diskRuns: resolveSetter(next, state.diskRuns) })),
   setLoading: (next) => set((state) => ({ loading: resolveSetter(next, state.loading) })),
   setSimulating: (next) => set((state) => ({ simulating: resolveSetter(next, state.simulating) })),

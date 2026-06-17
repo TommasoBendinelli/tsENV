@@ -25,6 +25,8 @@ import {
   isValidNumberInput,
 } from './domains/sampling';
 import type {
+  BaselineRun,
+  RegistryPageInfo,
   RunRecord,
   SimulationStatus,
 } from './types';
@@ -32,6 +34,7 @@ import type {
 export type DashboardController = ReturnType<typeof useDashboardController>;
 
 const asTrimmedString = (value: unknown): string => String(value ?? '').trim();
+const DEFAULT_REGISTRY_PAGE_SIZE = 250;
 
 function responseMessageFromData(data: unknown): string {
   if (!data || typeof data !== 'object') return '';
@@ -65,11 +68,47 @@ function formatApiError(err: any, fallback: string): string {
   return message || fallback;
 }
 
+function normalizeRegistryPageInfo(value: unknown): RegistryPageInfo | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const mode = asTrimmedString(record.mode);
+  if (mode !== 'page' && mode !== 'family' && mode !== 'full') return null;
+  return {
+    mode,
+    page: Math.max(1, Math.trunc(Number(record.page) || 1)),
+    page_size: Math.max(0, Math.trunc(Number(record.page_size) || DEFAULT_REGISTRY_PAGE_SIZE)),
+    total_families: Math.max(0, Math.trunc(Number(record.total_families) || 0)),
+    total_pages: Math.max(1, Math.trunc(Number(record.total_pages) || 1)),
+    has_next: Boolean(record.has_next),
+    has_previous: Boolean(record.has_previous),
+    family_id: asTrimmedString(record.family_id) || undefined,
+    run: asTrimmedString(record.run) || undefined,
+  };
+}
+
+function mergeBaselineRecords(existing: BaselineRun[], incoming: BaselineRun[]) {
+  const byRunId = new Map<string, BaselineRun>();
+  for (const baseline of existing) {
+    const runId = asTrimmedString((baseline as any)?.run_id);
+    if (runId) byRunId.set(runId, baseline);
+  }
+  for (const baseline of incoming) {
+    const runId = asTrimmedString((baseline as any)?.run_id);
+    if (runId) byRunId.set(runId, baseline);
+  }
+  return existing
+    .map((baseline) => byRunId.get(asTrimmedString((baseline as any)?.run_id)) ?? baseline)
+    .concat(incoming.filter((baseline) => (
+      !existing.some((item) => asTrimmedString((item as any)?.run_id) === asTrimmedString((baseline as any)?.run_id))
+    )));
+}
+
 export function useDashboardController() {
   const deepLinkRef = useRef<{
     rawRunId: string | null;
     rawComparatorRunId: string | null;
     rawModelId: string | null;
+    rawPolicyId: string | null;
     compareMode: 'auto' | 'baseline' | 'time0' | 'sibling' | 'none';
     noiseProfile: 'none' | 'low' | 'high' | null;
     noiseSeed: number | null;
@@ -79,6 +118,7 @@ export function useDashboardController() {
     rawRunId: null,
     rawComparatorRunId: null,
     rawModelId: null,
+    rawPolicyId: null,
     compareMode: 'auto',
     noiseProfile: null,
     noiseSeed: null,
@@ -93,7 +133,9 @@ export function useDashboardController() {
 
   const {
     selectedModel,
+    selectedPolicy,
     modelRecord,
+    registryPage,
     diskRuns,
     loading,
     runsData,
@@ -110,8 +152,12 @@ export function useDashboardController() {
     setModels,
     setModelValidation,
     setSelectedModel,
+    setPolicies,
+    setSelectedPolicy,
     setModelRecord,
     setOriginalModelRecord,
+    setRegistryPage,
+    setLoadingFamilyIds,
     setDiskRuns,
     setLoading,
     setRunsData,
@@ -201,6 +247,7 @@ export function useDashboardController() {
       rawRunId,
       rawComparatorRunId,
       rawModelId,
+      rawPolicyId,
       compareMode,
       noiseProfile,
       noiseSeed,
@@ -211,6 +258,7 @@ export function useDashboardController() {
       rawRunId,
       rawComparatorRunId,
       rawModelId,
+      rawPolicyId,
       compareMode,
       noiseProfile,
       noiseSeed,
@@ -224,8 +272,12 @@ export function useDashboardController() {
     const requestId = modelLoadRequestIdRef.current + 1;
     modelLoadRequestIdRef.current = requestId;
     registryModelKeyRef.current = '';
+    setPolicies([]);
+    setSelectedPolicy('');
     setModelRecord(null);
     setOriginalModelRecord(null);
+    setRegistryPage(null);
+    setLoadingFamilyIds([]);
     setDiskRuns([]);
     setHistory([]);
     setHistoryIndex(0);
@@ -243,9 +295,38 @@ export function useDashboardController() {
     setSamplingDetails({});
     setExposedParameterKeys([]);
     setExposedInitialStateKeys([]);
-    void fetchRegistry(selectedModel, requestId);
-    void fetchDistribution(selectedModel, requestId);
+    void fetchPolicies(selectedModel, requestId);
   }, [selectedModel]);
+
+  useEffect(() => {
+    if (!selectedModel || !selectedPolicy) return;
+    const requestId = modelLoadRequestIdRef.current + 1;
+    modelLoadRequestIdRef.current = requestId;
+    registryModelKeyRef.current = '';
+    setModelRecord(null);
+    setOriginalModelRecord(null);
+    setRegistryPage(null);
+    setLoadingFamilyIds([]);
+    setDiskRuns([]);
+    setHistory([]);
+    setHistoryIndex(0);
+    setRunsData({});
+    setSelectedRunIds([]);
+    setExpandedInterventions([]);
+    setAvailableSignals([]);
+    setSelectedSignals([]);
+    setSignalDisplayNames({});
+    setAvailableNoiseProfiles(['none']);
+    setSelectedNoiseProfile('none');
+    setSelectedSignalCases([]);
+    setSamplingIntervals({});
+    setSamplingPerturbationIntervals({});
+    setSamplingDetails({});
+    setExposedParameterKeys([]);
+    setExposedInitialStateKeys([]);
+    void fetchRegistry(selectedModel, selectedPolicy, requestId, { page: 1 });
+    void fetchDistribution(selectedModel, requestId);
+  }, [selectedModel, selectedPolicy]);
 
   useEffect(() => {
     const dl = deepLinkRef.current;
@@ -267,6 +348,8 @@ export function useDashboardController() {
           dl.applied = true;
           return;
         }
+        const policy = String(res.data?.policy || '').trim();
+        if (policy) dl.rawPolicyId = policy;
         setSelectedModel(model);
       } catch (err) {
         alert(`Failed to locate run '${dl.rawRunId}': ${formatApiError(err, 'Failed to locate run.')}`);
@@ -278,10 +361,10 @@ export function useDashboardController() {
     })();
   }, [setSelectedModel]);
 
-  const findBaselineForRunId = (runId: string): string | null => {
+  const findBaselineForRunId = (runId: string, baselines = modelRecord?.baselines ?? []): string | null => {
     const target = String(runId || '').trim();
     if (!target) return null;
-    for (const baseline of modelRecord?.baselines ?? []) {
+    for (const baseline of baselines) {
       const baselineId = String((baseline as any)?.run_id || '').trim();
       if (baselineId === target) return baselineId;
       for (const iv of (baseline as any)?.interventions ?? []) {
@@ -295,12 +378,13 @@ export function useDashboardController() {
 
   const pickComparator = (
     focusRunId: string,
-    compareMode: 'auto' | 'baseline' | 'time0' | 'sibling' | 'none'
+    compareMode: 'auto' | 'baseline' | 'time0' | 'sibling' | 'none',
+    baselines = modelRecord?.baselines ?? [],
   ): { baselineId: string | null; comparatorId: string | null } => {
     if (compareMode === 'none') return { baselineId: null, comparatorId: null };
-    const baselineId = findBaselineForRunId(focusRunId);
+    const baselineId = findBaselineForRunId(focusRunId, baselines);
     if (!baselineId) return { baselineId: null, comparatorId: null };
-    const run = (modelRecord?.baselines ?? []).find((r) => String(r.run_id) === baselineId);
+    const run = baselines.find((r) => String(r.run_id) === baselineId);
     const iv = run?.interventions?.find((x: any) => String(x?.name) === focusRunId);
     const time0 = String((iv as any)?.time0_baseline_uuid || '').trim() || null;
 
@@ -315,11 +399,17 @@ export function useDashboardController() {
   useEffect(() => {
     const dl = deepLinkRef.current;
     if (dl.applied || !dl.rawRunId || !dl.resolved || !selectedModel) return;
-    if (registryModelKeyRef.current !== selectedModel || !modelRecord) return;
+    if (!selectedPolicy || registryModelKeyRef.current !== `${selectedModel}::${selectedPolicy}` || !modelRecord) return;
 
     void (async () => {
       try {
-        const knownRunIds = collectDeepLinkKnownRunIds(modelRecord?.baselines as any);
+        let activeBaselines = modelRecord?.baselines ?? [];
+        let knownRunIds = collectDeepLinkKnownRunIds(activeBaselines as any);
+        if (!knownRunIds.has(dl.rawRunId!)) {
+          const loaded = await fetchRegistryFamily({ runId: dl.rawRunId! });
+          activeBaselines = mergeBaselineRecords(activeBaselines, loaded);
+          knownRunIds = collectDeepLinkKnownRunIds(activeBaselines as any);
+        }
         if (!knownRunIds.has(dl.rawRunId!)) {
           alert(`Run '${dl.rawRunId}' is not present in the current registry for model '${selectedModel}'.`);
           clearDeepLinkRunFromLocation();
@@ -331,17 +421,22 @@ export function useDashboardController() {
         let comparatorId: string | null = null;
         if (dl.rawComparatorRunId) {
           if (!knownRunIds.has(dl.rawComparatorRunId)) {
+            const loadedComparator = await fetchRegistryFamily({ runId: dl.rawComparatorRunId });
+            activeBaselines = mergeBaselineRecords(activeBaselines, loadedComparator);
+            knownRunIds = collectDeepLinkKnownRunIds(activeBaselines as any);
+          }
+          if (!knownRunIds.has(dl.rawComparatorRunId)) {
             alert(`Comparator run '${dl.rawComparatorRunId}' is not present in the current registry for model '${selectedModel}'.`);
             clearDeepLinkRunFromLocation();
             setSelectedRunIds([]);
             dl.applied = true;
             return;
           }
-          baselineId = findBaselineForRunId(dl.rawRunId!) || findBaselineForRunId(dl.rawComparatorRunId);
+          baselineId = findBaselineForRunId(dl.rawRunId!, activeBaselines) || findBaselineForRunId(dl.rawComparatorRunId, activeBaselines);
           comparatorId = dl.rawComparatorRunId;
         } else {
-          const picked = pickComparator(dl.rawRunId!, dl.compareMode);
-          baselineId = picked.baselineId || findBaselineForRunId(dl.rawRunId!);
+          const picked = pickComparator(dl.rawRunId!, dl.compareMode, activeBaselines);
+          baselineId = picked.baselineId || findBaselineForRunId(dl.rawRunId!, activeBaselines);
           comparatorId = picked.comparatorId;
         }
 
@@ -374,6 +469,7 @@ export function useDashboardController() {
     })();
   }, [
     selectedModel,
+    selectedPolicy,
     modelRecord,
     diskRuns,
     runsData,
@@ -383,17 +479,56 @@ export function useDashboardController() {
 
   const hasRunData = (runId: string, _runs = registry, dataRuns = diskRuns) => dataRuns.includes(runId);
 
+  const fetchPolicies = async (modelKey: string, requestId: number) => {
+    try {
+      const controller = new AbortController();
+      const res = await axios.get(`/api/policies?model=${encodeURIComponent(modelKey)}`, { signal: controller.signal });
+      if (modelLoadRequestIdRef.current !== requestId) {
+        controller.abort();
+        return;
+      }
+      const nextPolicies = Array.isArray(res.data?.policies)
+        ? res.data.policies.map((value: unknown) => String(value ?? '').trim()).filter(Boolean)
+        : [];
+      setPolicies(nextPolicies);
+      const dlPolicy = String(deepLinkRef.current.rawPolicyId || '').trim();
+      setSelectedPolicy(
+        dlPolicy && nextPolicies.includes(dlPolicy)
+          ? dlPolicy
+          : (nextPolicies[0] ?? '')
+      );
+      if (nextPolicies.length === 0) {
+        setModelRecord(null);
+        setOriginalModelRecord(null);
+        setRegistryPage(null);
+        setDiskRuns([]);
+      }
+    } catch (err) {
+      console.error(err);
+      if (modelLoadRequestIdRef.current === requestId) {
+        setPolicies([]);
+        setSelectedPolicy('');
+        alert(`Failed to load policies for model '${modelKey}': ${formatApiError(err, 'Failed to load policies.')}`);
+      }
+    }
+  };
+
   const handleReloadRegistryFromFile = async () => {
-    if (!selectedModel || loading) return;
+    if (!selectedModel || !selectedPolicy || loading) return;
     setRunsData({});
     setSelectedRunIds([]);
     setExpandedInterventions([]);
-    await fetchRegistry(selectedModel);
+    await fetchRegistry(selectedModel, selectedPolicy, undefined, { page: registryPage?.page ?? 1 });
     await fetchDistribution(selectedModel);
   };
 
-  const fetchRegistry = async (modelKey = selectedModel, requestId?: number) => {
-    if (!modelKey) return null;
+  const fetchRegistry = async (
+    modelKey = selectedModel,
+    policyKey = selectedPolicy,
+    requestId?: number,
+    options: { page?: number; pageSize?: number; mode?: 'full' } = {},
+  ) => {
+    if (!modelKey || !policyKey) return null;
     const nextRequestId = typeof requestId === 'number'
       ? requestId
       : (modelLoadRequestIdRef.current + 1);
@@ -401,7 +536,14 @@ export function useDashboardController() {
     setLoading(true);
     try {
       const controller = new AbortController();
-      const res = await axios.get(`/api/registry?model=${modelKey}`, { signal: controller.signal });
+      const query = new URLSearchParams({
+        model: modelKey,
+        policy: policyKey,
+        page: String(Math.max(1, Math.trunc(Number(options.page ?? 1) || 1))),
+        page_size: String(Math.max(1, Math.trunc(Number(options.pageSize ?? registryPage?.page_size ?? DEFAULT_REGISTRY_PAGE_SIZE) || DEFAULT_REGISTRY_PAGE_SIZE))),
+      });
+      if (options.mode === 'full') query.set('mode', 'full');
+      const res = await axios.get(`/api/registry?${query.toString()}`, { signal: controller.signal });
       if (modelLoadRequestIdRef.current !== nextRequestId) {
         controller.abort();
         return null;
@@ -442,6 +584,7 @@ export function useDashboardController() {
 
       const diskRunIds = Array.isArray(res.data.diskRuns) ? res.data.diskRuns : [];
       const nextModelRecord = { ...loadedModel, version: 1, model_id: modelKey, baselines: normalized };
+      const nextRegistryPage = normalizeRegistryPageInfo(res.data?.registryPage);
       const sanitizedUiState = sanitizeRegistryBoundUiState(normalized, {
         selectedRunIds,
         expandedInterventions,
@@ -451,12 +594,13 @@ export function useDashboardController() {
       });
       setModelRecord(nextModelRecord);
       setOriginalModelRecord(JSON.parse(JSON.stringify(nextModelRecord)));
+      setRegistryPage(nextRegistryPage);
       setDiskRuns(diskRunIds);
       setSelectedRunIds(sanitizedUiState.selectedRunIds);
       setExpandedInterventions(sanitizedUiState.expandedInterventions);
       setRunsData(sanitizedUiState.runsData);
       setBulkTimeByRunId(sanitizedUiState.bulkTimeByRunId);
-      registryModelKeyRef.current = modelKey;
+      registryModelKeyRef.current = `${modelKey}::${policyKey}`;
       setSignalDisplayNames(
         res.data?.signalDisplayNames && typeof res.data.signalDisplayNames === 'object'
           ? res.data.signalDisplayNames
@@ -483,10 +627,12 @@ export function useDashboardController() {
         registryModelKeyRef.current = '';
         setModelRecord(null);
         setOriginalModelRecord(null);
+        setRegistryPage(null);
         setDiskRuns([]);
         setRunsData({});
         setSelectedRunIds([]);
         setExpandedInterventions([]);
+        setLoadingFamilyIds([]);
         setAvailableSignals([]);
         setSelectedSignals([]);
         setSignalDisplayNames({});
@@ -496,12 +642,76 @@ export function useDashboardController() {
         setHistory([]);
         setHistoryIndex(0);
         setBulkTimeByRunId({});
-        alert(`Failed to load registry for model '${modelKey}': ${formatApiError(err, 'Failed to load registry.')}`);
+        alert(`Failed to load registry for model '${modelKey}' policy '${policyKey}': ${formatApiError(err, 'Failed to load registry.')}`);
       }
       return null;
     } finally {
       if (modelLoadRequestIdRef.current === nextRequestId) setLoading(false);
     }
+  };
+
+  const fetchRegistryFamily = async (opts: { familyId?: string; runId?: string }) => {
+    if (!selectedModel || !selectedPolicy) return [];
+    const familyId = asTrimmedString(opts.familyId);
+    const runId = asTrimmedString(opts.runId);
+    if (!familyId && !runId) return [];
+    const loadingKey = familyId || runId;
+    setLoadingFamilyIds((prev) => (prev.includes(loadingKey) ? prev : [...prev, loadingKey]));
+    try {
+      const query = new URLSearchParams({ model: selectedModel, policy: selectedPolicy });
+      if (familyId) query.set('family_id', familyId);
+      if (runId) query.set('run', runId);
+      const res = await axios.get(`/api/registry?${query.toString()}`);
+      const loadedModel = res.data?.modelRecord;
+      if (!loadedModel?.metadata || typeof loadedModel.metadata !== 'object') {
+        throw new Error('Family registry response missing modelRecord metadata.');
+      }
+      const normalized = normalizeRegistry(loadedModel.baselines ?? [], {
+        selectedModel,
+        buildInterventionDisplayNames,
+      }) as BaselineRun[];
+      const state = useDashboardStore.getState();
+      const currentModelRecord = state.modelRecord;
+      const nextBaselines = mergeBaselineRecords(currentModelRecord?.baselines ?? [], normalized);
+      const nextModelRecord = {
+        ...(currentModelRecord ?? loadedModel),
+        version: 1,
+        model_id: selectedModel,
+        baselines: nextBaselines,
+      };
+      setModelRecord(nextModelRecord);
+      setOriginalModelRecord(JSON.parse(JSON.stringify(nextModelRecord)));
+      if (Array.isArray(res.data?.diskRuns)) {
+        setDiskRuns((prev) => Array.from(new Set([...prev, ...res.data.diskRuns])));
+      }
+      return normalized;
+    } catch (err) {
+      alert(`Failed to load family details: ${formatApiError(err, 'Failed to load family details.')}`);
+      return [];
+    } finally {
+      setLoadingFamilyIds((prev) => prev.filter((id) => id !== loadingKey));
+    }
+  };
+
+  const ensureFamilyDetailsLoaded = async (baseline: RunRecord) => {
+    const familyId = asTrimmedString((baseline as any)?.family_id);
+    const runId = asTrimmedString((baseline as any)?.run_id);
+    const expectedChildren = Math.max(0, Math.trunc(Number((baseline as any)?.intervention_count) || 0));
+    const currentChildren = Array.isArray((baseline as any)?.interventions)
+      ? (baseline as any).interventions.length
+      : 0;
+    if ((baseline as any)?.detail_loaded || expectedChildren <= currentChildren) return baseline;
+    const loaded = await fetchRegistryFamily({ familyId, runId });
+    return loaded[0] ?? baseline;
+  };
+
+  const handleRegistryPageChange = async (page: number) => {
+    if (!selectedModel || !selectedPolicy || loading) return;
+    setExpandedInterventions([]);
+    await fetchRegistry(selectedModel, selectedPolicy, undefined, {
+      page,
+      pageSize: registryPage?.page_size ?? DEFAULT_REGISTRY_PAGE_SIZE,
+    });
   };
 
   const fetchDistribution = async (modelKey = selectedModel, requestId?: number) => {
@@ -791,7 +1001,7 @@ export function useDashboardController() {
 
   const fetchSimulationStatus = async () => {
     try {
-      const res = await axios.get(`/api/simulate?model=${selectedModel}&_t=${Date.now()}`);
+      const res = await axios.get(`/api/simulate?model=${selectedModel}&policy=${encodeURIComponent(selectedPolicy)}&_t=${Date.now()}`);
       return res.data.status as SimulationStatus;
     } catch (err) {
       throw new Error(formatApiError(err, 'Failed to load simulation status.'));
@@ -822,9 +1032,11 @@ export function useDashboardController() {
     formatVariableLabel,
     getPreviousValue,
     handleReloadRegistryFromFile,
+    handleRegistryPageChange,
     handleVisibleSignalsChange,
     hasRunData,
     isValidNumberInput,
+    ensureFamilyDetailsLoaded,
     paramKeys,
     shouldIgnoreRowClick,
     toggleRunVisualization,

@@ -1,12 +1,6 @@
 /* This file is generated. Do not edit by hand. */
 /* Source: shared/schemas/sample_manifest.schema.json */
 
-export interface Accuracy {
-  correlation_nn: number;
-  euclidean_centroid: number;
-  euclidean_knn: number;
-}
-
 export interface ManifestShotSelection {
   is_adversarial: boolean | null;
   number_test_samples: number;
@@ -14,8 +8,6 @@ export interface ManifestShotSelection {
 }
 
 export interface ManifestItem {
-  accuracy_with_baselines: Accuracy;
-  accuracy_with_baselines_all_samples: Accuracy;
   seed: number;
   test_set_slug: string;
   shot_slug_recipe: ManifestShotSelection;

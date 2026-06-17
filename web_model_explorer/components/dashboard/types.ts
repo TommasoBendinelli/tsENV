@@ -55,3 +55,15 @@ export interface SamplingSpec {
   max: number;
   type: 'uniform' | 'loguniform';
 }
+
+export interface RegistryPageInfo {
+  mode: 'page' | 'family' | 'full';
+  page: number;
+  page_size: number;
+  total_families: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+  family_id?: string;
+  run?: string;
+}

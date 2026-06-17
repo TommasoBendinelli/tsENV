@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import importlib.util
 import json
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,10 +58,21 @@ def validate_environment_profile_config_keys(config_path: Path) -> None:
         raise EnvironmentProfileValidationError(
             f"experiment_config.json must be a JSON object: {config_path}"
         )
+    paper_facing_name = str(payload.get("paper_facing_name") or "").strip()
+    if not paper_facing_name:
+        raise EnvironmentProfileValidationError(
+            f"experiment_config.json must define non-empty paper_facing_name: {config_path}"
+        )
     detectability = payload.get("detectability")
     if not isinstance(detectability, dict):
         raise EnvironmentProfileValidationError(
             f"experiment_config.json must define a detectability object: {config_path}"
+        )
+    if "signal_to_noise_ratio_db_thresholds" in detectability:
+        raise EnvironmentProfileValidationError(
+            "experiment_config.json uses legacy "
+            "detectability.signal_to_noise_ratio_db_thresholds; "
+            f"use detectability.RMS_thresholds instead: {config_path}"
         )
     required_by_profile = {
         "continuous": (
@@ -88,28 +101,27 @@ def validate_environment_profile_config_keys(config_path: Path) -> None:
             f"experiment_config.json must define canonical detectability keys "
             f"{missing}: {config_path}"
         )
-    signal_to_noise_ratio_db_thresholds = detectability.get(
-        "signal_to_noise_ratio_db_thresholds"
-    )
-    if signal_to_noise_ratio_db_thresholds is not None:
-        if not isinstance(signal_to_noise_ratio_db_thresholds, dict):
+    rms_thresholds = detectability.get("RMS_thresholds")
+    if not isinstance(rms_thresholds, dict) or not rms_thresholds:
+        raise EnvironmentProfileValidationError(
+            "experiment_config.json detectability.RMS_thresholds must be a "
+            f"non-empty object: {config_path}"
+        )
+    for signal, threshold in rms_thresholds.items():
+        try:
+            parsed_threshold = float(threshold)
+        except (TypeError, ValueError):
+            parsed_threshold = float("nan")
+        if (
+            not isinstance(signal, str)
+            or not signal.strip()
+            or not math.isfinite(parsed_threshold)
+            or parsed_threshold < 0.0
+        ):
             raise EnvironmentProfileValidationError(
-                "experiment_config.json "
-                "detectability.signal_to_noise_ratio_db_thresholds must be an object: "
-                f"{config_path}"
+                "experiment_config.json detectability.RMS_thresholds must map "
+                f"signals to finite non-negative numbers: {config_path}"
             )
-        for signal, thresholds in signal_to_noise_ratio_db_thresholds.items():
-            if (
-                not isinstance(signal, str)
-                or not signal.strip()
-                or not isinstance(thresholds, list)
-                or len(thresholds) != 2
-            ):
-                raise EnvironmentProfileValidationError(
-                    "experiment_config.json "
-                    "detectability.signal_to_noise_ratio_db_thresholds must map "
-                    f"signals to [low_db, high_db]: {config_path}"
-                )
 
 
 def load_description_levels_payload(levels_path: Path) -> Dict[str, Any]:
@@ -169,9 +181,23 @@ def _load_environment_profile_module(path: Path) -> ModuleType:
 def validate_environment_profile_detectability_hook(model_dir: Path) -> None:
     path = model_dir / "detectability_specific_environment.py"
     module = _load_environment_profile_module(path)
-    if not callable(getattr(module, "is_detectable", None)):
+    is_detectable = getattr(module, "is_detectable", None)
+    if not callable(is_detectable):
         raise EnvironmentProfileValidationError(
             f"detectability_specific_environment.py must export callable is_detectable: {path}"
+        )
+    signature = inspect.signature(is_detectable)
+    if list(signature.parameters) != [
+        "intervention",
+        "baseline",
+        "run_parameters",
+        "intervention_time",
+        "min_first_diff",
+    ]:
+        raise EnvironmentProfileValidationError(
+            "detectability_specific_environment.py is_detectable must have "
+            "(intervention, baseline, run_parameters, intervention_time, "
+            f"min_first_diff): {path}"
         )
 
 
@@ -197,11 +223,18 @@ def validate_environment_profile_features(model_dir: Path) -> None:
 def validate_environment_profile_noise_adder(model_dir: Path) -> None:
     path = model_dir / "noise_adder.py"
     try:
-        load_noise_adder_from_path(path)
+        add_noise = load_noise_adder_from_path(path)
     except Exception as exc:
         raise EnvironmentProfileValidationError(
             f"noise_adder.py must follow the documented environment profile interface: {exc}"
         ) from exc
+    signature = inspect.signature(add_noise)
+    if list(signature.parameters) != ["src", "seed", "noise_level", "ref"]:
+        raise EnvironmentProfileValidationError(
+            "noise_adder.py add_noise must have documented signature "
+            "(src, seed, noise_level, ref): "
+            f"{path}"
+        )
 
 
 def load_description_levels_observable_signals(levels_path: Path) -> List[str]:

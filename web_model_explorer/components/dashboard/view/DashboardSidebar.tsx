@@ -12,11 +12,6 @@ export function DashboardSidebar() {
   const setSelectedModel = useDashboardStore((state) => state.setSelectedModel);
 
   const handleSelectModel = (model: string) => {
-    const reasons = (modelValidation?.[model]?.reasons || []).filter(Boolean);
-    const staleReasons = reasons.filter((reason) => reason.includes('model_run_specs.json appears stale'));
-    if (staleReasons.length > 0) {
-      window.alert(staleReasons.join('\n'));
-    }
     setSelectedModel(model);
   };
 

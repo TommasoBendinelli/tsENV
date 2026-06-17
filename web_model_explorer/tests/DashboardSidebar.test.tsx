@@ -17,15 +17,13 @@ test('selecting a model updates the store', () => {
   expect(useDashboardStore.getState().selectedModel).toBe('ModelA');
 });
 
-test('selecting a model with stale model_run_specs shows a popup', () => {
+test('selecting a model with validation warnings does not show a popup', () => {
   const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
   useDashboardStore.setState({
     modelValidation: {
       ModelA: {
         ok: false,
-        reasons: [
-          "model_run_specs.json appears stale: baseline 'abc' baseline_parameters_hash does not match current baseline_parameters.",
-        ],
+        reasons: ['Missing plans/<policy_id>/run_nodes.jsonl and run_edges.jsonl.'],
       },
     },
   });
@@ -33,7 +31,7 @@ test('selecting a model with stale model_run_specs shows a popup', () => {
   render(<DashboardSidebar />);
   fireEvent.click(screen.getByRole('button', { name: /ModelA/ }));
 
-  expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('model_run_specs.json appears stale'));
+  expect(alertSpy).not.toHaveBeenCalled();
   expect(useDashboardStore.getState().selectedModel).toBe('ModelA');
   alertSpy.mockRestore();
 });

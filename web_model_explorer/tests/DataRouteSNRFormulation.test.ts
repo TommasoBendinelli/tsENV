@@ -13,6 +13,13 @@ const repoPythonPath = () => {
   return found;
 };
 
+const writeRepoPythonShim = (tmpRoot: string) => {
+  const shimPath = path.join(tmpRoot, 'env', 'bin', 'python');
+  fs.mkdirSync(path.dirname(shimPath), { recursive: true });
+  fs.writeFileSync(shimPath, `#!/bin/sh\nexec "${repoPythonPath()}" "$@"\n`, 'utf8');
+  fs.chmodSync(shimPath, 0o755);
+};
+
 const linkSharedPackage = (tmpRoot: string) => {
   const candidates = [
     path.resolve(process.cwd(), '..', 'shared'),
@@ -46,10 +53,14 @@ const writeNoiseAdder = (filePath: string) => {
   fs.writeFileSync(
     filePath,
     [
-      'def add_noise(clean, baseline, seed=0, noise_level="low"):',
-      '    out = clean.copy()',
+      'NOISE_DICT = {"low": {}, "high": {}}',
+      'SNR_THR_DICT = {"low": {"global": [], "local": []}, "high": {"global": [], "local": []}}',
+      'def quantify_noise(clean, noisy, reference):',
+      '    return {"global": [999.0], "local": [999.0]}',
+      'def add_noise(src, seed=0, noise_level="low", ref=None):',
+      '    out = src.copy()',
       '    out["x"] = out["x"] + 1.0',
-      '    return out, {"x": {"global": 999.0, "local": 999.0}}',
+      '    return out, quantify_noise(src, out, ref)',
       '',
     ].join('\n'),
     'utf8',
@@ -61,13 +72,30 @@ const writeTwoSignalNoiseAdder = (filePath: string) => {
   fs.writeFileSync(
     filePath,
     [
-      'def add_noise(clean, baseline, seed=0, noise_level="low"):',
-      '    out = clean.copy()',
+      'NOISE_DICT = {"low": {}, "high": {}}',
+      'SNR_THR_DICT = {"low": {"global": [], "local": []}, "high": {"global": [], "local": []}}',
+      'def quantify_noise(clean, noisy, reference):',
+      '    return {"global": [999.0, 999.0], "local": [999.0, 999.0]}',
+      'def add_noise(src, seed=0, noise_level="low", ref=None):',
+      '    out = src.copy()',
       '    out["x"] = out["x"] + 1.0',
       '    out["y"] = out["y"] + 1.0',
-      '    return out, {"x": {"global": 999.0, "local": 999.0}, "y": {"global": 999.0, "local": 999.0}}',
+      '    return out, quantify_noise(src, out, ref)',
       '',
     ].join('\n'),
+    'utf8',
+  );
+};
+
+const writePlanEdge = (modelRoot: string, interventionRunId: string, baselineRunId: string) => {
+  fs.mkdirSync(path.join(modelRoot, 'plans', 'policy_a'), { recursive: true });
+  fs.writeFileSync(
+    path.join(modelRoot, 'plans', 'policy_a', 'run_edges.jsonl'),
+    `${JSON.stringify({
+      edge_type: 'intervention_to_time0_baseline',
+      source_run_id: interventionRunId,
+      target_run_id: baselineRunId,
+    })}\n`,
     'utf8',
   );
 };
@@ -79,8 +107,7 @@ describe('/api/data SNR formulation', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'data-route-snr-'));
     const fakeWebRoot = path.join(tmpRoot, 'web_model_explorer');
     const modelRoot = path.join(tmpRoot, 'models', 'simulink', 'ExampleModel');
-    fs.mkdirSync(path.join(tmpRoot, 'env', 'bin'), { recursive: true });
-    fs.symlinkSync(repoPythonPath(), path.join(tmpRoot, 'env', 'bin', 'python'));
+    writeRepoPythonShim(tmpRoot);
     linkSharedPackage(tmpRoot);
     fs.mkdirSync(fakeWebRoot, { recursive: true });
 
@@ -97,19 +124,7 @@ describe('/api/data SNR formulation', () => {
       [3, 1],
     ]);
     writeNoiseAdder(path.join(modelRoot, 'noise_adder.py'));
-    fs.writeFileSync(
-      path.join(modelRoot, 'model_run_specs.json'),
-      JSON.stringify({
-        parent: {
-          children: {
-            child123: {
-              time0_baseline_uuid: 'baseline123',
-            },
-          },
-        },
-      }),
-      'utf8',
-    );
+    writePlanEdge(modelRoot, 'child123', 'baseline123');
 
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
     const { GET } = await import('../app/api/data/route');
@@ -135,8 +150,7 @@ describe('/api/data SNR formulation', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'data-route-snr-'));
     const fakeWebRoot = path.join(tmpRoot, 'web_model_explorer');
     const modelRoot = path.join(tmpRoot, 'models', 'simulink', 'ExampleModel');
-    fs.mkdirSync(path.join(tmpRoot, 'env', 'bin'), { recursive: true });
-    fs.symlinkSync(repoPythonPath(), path.join(tmpRoot, 'env', 'bin', 'python'));
+    writeRepoPythonShim(tmpRoot);
     linkSharedPackage(tmpRoot);
     fs.mkdirSync(fakeWebRoot, { recursive: true });
 
@@ -164,8 +178,7 @@ describe('/api/data SNR formulation', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'data-route-snr-'));
     const fakeWebRoot = path.join(tmpRoot, 'web_model_explorer');
     const modelRoot = path.join(tmpRoot, 'models', 'simulink', 'ExampleModel');
-    fs.mkdirSync(path.join(tmpRoot, 'env', 'bin'), { recursive: true });
-    fs.symlinkSync(repoPythonPath(), path.join(tmpRoot, 'env', 'bin', 'python'));
+    writeRepoPythonShim(tmpRoot);
     linkSharedPackage(tmpRoot);
     fs.mkdirSync(fakeWebRoot, { recursive: true });
 
@@ -182,19 +195,7 @@ describe('/api/data SNR formulation', () => {
       [3, 1, 5],
     ]);
     writeTwoSignalNoiseAdder(path.join(modelRoot, 'noise_adder.py'));
-    fs.writeFileSync(
-      path.join(modelRoot, 'model_run_specs.json'),
-      JSON.stringify({
-        parent: {
-          children: {
-            child123: {
-              time0_baseline_uuid: 'baseline123',
-            },
-          },
-        },
-      }),
-      'utf8',
-    );
+    writePlanEdge(modelRoot, 'child123', 'baseline123');
 
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
     const { GET } = await import('../app/api/data/route');

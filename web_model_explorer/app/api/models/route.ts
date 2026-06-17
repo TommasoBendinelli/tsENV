@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { collectStaleModelRunSpecReasons } from '../modelRunSpecHashes';
+import {
+  modelDir as resolveModelDir,
+  modelsRoot as resolveModelsRoot,
+  repoModelDir,
+  repoRoot as resolveRepoRoot,
+} from '../modelExplorerPaths';
 
 type ModelValidationResult = {
   ok: boolean;
@@ -19,18 +24,19 @@ const readAllowedModels = () => {
 };
 
 export async function GET() {
-  const modelsRoot = path.join(process.cwd(), '..', 'models', 'simulink');
+  const repoRoot = resolveRepoRoot();
+  const modelsRoot = resolveModelsRoot(repoRoot);
   try {
     const categories = readAllowedModels().filter((model) => {
-      const modelDir = path.join(modelsRoot, model);
+      const modelDir = repoModelDir(model, repoRoot);
       return fs.existsSync(modelDir) && fs.statSync(modelDir).isDirectory();
     });
 
     const validation: Record<string, ModelValidationResult> = {};
     for (const model of categories) {
-      const modelDir = path.join(modelsRoot, model);
+      const modelDir = resolveModelDir(model, repoRoot);
       const hasExperimentConfig = fs.existsSync(path.join(modelDir, 'experiment_config.json'));
-      const specsPath = path.join(modelDir, 'model_run_specs.json');
+      const plansRoot = path.join(modelDir, 'plans');
       const requiredPaths: Array<{ rel: string; reason: string }> = [
         {
           rel: 'simulink_model_original.mdl',
@@ -50,14 +56,18 @@ export async function GET() {
       if (!hasExperimentConfig) {
         reasons.push('Missing experiment_config.json (experiment configuration).');
       }
-      if (!fs.existsSync(specsPath)) {
-        reasons.push('Missing model_run_specs.json (planned baseline and intervention topology).');
+      if (!fs.existsSync(plansRoot) || !fs.statSync(plansRoot).isDirectory()) {
+        reasons.push('Missing plans/<policy_id>/run_nodes.jsonl and run_edges.jsonl (resolved policy topology).');
       } else {
-        try {
-          const specsPayload = JSON.parse(fs.readFileSync(specsPath, 'utf8'));
-          reasons.push(...collectStaleModelRunSpecReasons(specsPayload));
-        } catch (error) {
-          reasons.push(`Failed to validate model_run_specs.json: ${(error as Error).message}`);
+        const planIds = fs.readdirSync(plansRoot, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+          .map((entry) => entry.name);
+        const hasResolvedPlan = planIds.some((policyId) => (
+          fs.existsSync(path.join(plansRoot, policyId, 'run_nodes.jsonl'))
+          && fs.existsSync(path.join(plansRoot, policyId, 'run_edges.jsonl'))
+        ));
+        if (!hasResolvedPlan) {
+          reasons.push('Missing plans/<policy_id>/run_nodes.jsonl and run_edges.jsonl (resolved policy topology).');
         }
       }
       for (const item of requiredPaths) {

@@ -345,11 +345,12 @@ def _load_agent_registry() -> tuple[dict[str, Any], ...]:
         raise ValueError(f"{_AGENT_REGISTRY_PATH} must contain a non-empty JSON array")
     entries: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
+    seen_paper_facing_names: set[str] = set()
     for idx, raw_entry in enumerate(payload):
         if not isinstance(raw_entry, dict):
             raise TypeError(f"{_AGENT_REGISTRY_PATH} entries must be objects (index {idx})")
         keys = set(raw_entry)
-        expected = {
+        required = {
             "agent_id",
             "available_tools",
             "cost",
@@ -358,9 +359,11 @@ def _load_agent_registry() -> tuple[dict[str, Any], ...]:
             "reasoning",
             "support_images",
         }
-        if keys != expected:
+        optional = {"paper_facing_name"}
+        if not required <= keys or keys - required - optional:
             raise ValueError(
-                f"{_AGENT_REGISTRY_PATH} entry {idx} must define exactly {sorted(expected)!r}, "
+                f"{_AGENT_REGISTRY_PATH} entry {idx} must define required fields "
+                f"{sorted(required)!r} and optional fields {sorted(optional)!r}, "
                 f"got {sorted(keys)!r}"
             )
         entry: dict[str, Any] = {}
@@ -375,6 +378,20 @@ def _load_agent_registry() -> tuple[dict[str, Any], ...]:
                     f"{_AGENT_REGISTRY_PATH} entry {idx} contains empty value for {key!r}"
                 )
             entry[key] = value
+        if "paper_facing_name" in raw_entry:
+            paper_facing_name = str(raw_entry["paper_facing_name"]).strip()
+            if not paper_facing_name:
+                raise ValueError(
+                    f"{_AGENT_REGISTRY_PATH} entry {idx} contains empty value for "
+                    "'paper_facing_name'"
+                )
+            if paper_facing_name in seen_paper_facing_names:
+                raise ValueError(
+                    f"Duplicate paper_facing_name in {_AGENT_REGISTRY_PATH}: "
+                    f"{paper_facing_name!r}"
+                )
+            seen_paper_facing_names.add(paper_facing_name)
+            entry["paper_facing_name"] = paper_facing_name
         platform_id = _normalize_platform_id(
             raw_entry["platform_id"],
             idx=idx,

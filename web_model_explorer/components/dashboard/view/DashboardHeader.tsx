@@ -8,6 +8,9 @@ import { useDashboardStore } from '../useDashboardStore';
 
 export function DashboardHeader(props: { runsDirName?: string }) {
   const selectedModel = useDashboardStore((state) => state.selectedModel);
+  const policies = useDashboardStore((state) => state.policies);
+  const selectedPolicy = useDashboardStore((state) => state.selectedPolicy);
+  const setSelectedPolicy = useDashboardStore((state) => state.setSelectedPolicy);
   const loading = useDashboardStore((state) => state.loading);
   const runsDirName = String(props.runsDirName || '').trim() || 'runs';
   const runsPathLabel = selectedModel
@@ -39,6 +42,22 @@ export function DashboardHeader(props: { runsDirName?: string }) {
           >
             Runs folder: <span className="ml-1 font-mono">{runsDirName}</span>
           </span>
+          <label className="hidden lg:flex items-center gap-2 text-xs font-semibold text-gray-500">
+            <span>Policy</span>
+            <select
+              value={selectedPolicy}
+              disabled={!selectedModel || loading || policies.length === 0}
+              onChange={(event) => setSelectedPolicy(event.target.value)}
+              className="h-8 min-w-[16rem] rounded-md border border-gray-200 bg-white px-2 font-mono text-xs text-gray-700 disabled:opacity-40"
+              title="Resolved run-graph policy_id"
+            >
+              {policies.length === 0 ? (
+                <option value="">No policies</option>
+              ) : policies.map((policy) => (
+                <option key={policy} value={policy}>{policy}</option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 

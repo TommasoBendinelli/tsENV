@@ -26,8 +26,12 @@ describe('useDashboardController', () => {
       models: [],
       modelValidation: {},
       selectedModel: '',
+      policies: [],
+      selectedPolicy: '',
       modelRecord: null,
       originalModelRecord: null,
+      registryPage: null,
+      loadingFamilyIds: [],
       diskRuns: [],
       loading: false,
       simulating: false,
@@ -73,6 +77,9 @@ describe('useDashboardController', () => {
       const rawUrl = String(url);
       if (rawUrl.startsWith('/api/models')) {
         return Promise.resolve({ data: { models: ['ModelA'] } } as any);
+      }
+      if (rawUrl.startsWith('/api/policies')) {
+        return Promise.resolve({ data: { policies: ['policyA'] } } as any);
       }
       if (rawUrl.startsWith('/api/registry')) {
         return Promise.resolve({
@@ -349,6 +356,9 @@ describe('useDashboardController', () => {
       if (rawUrl.startsWith('/api/models')) {
         return Promise.resolve({ data: { models: ['ModelA'] } } as any);
       }
+      if (rawUrl.startsWith('/api/policies')) {
+        return Promise.resolve({ data: { policies: ['policyA'] } } as any);
+      }
       if (rawUrl.startsWith('/api/registry')) {
         return Promise.reject({
           response: {
@@ -396,6 +406,9 @@ describe('useDashboardController', () => {
       const rawUrl = String(url);
       if (rawUrl.startsWith('/api/models')) {
         return Promise.resolve({ data: { models: ['ModelA'] } } as any);
+      }
+      if (rawUrl.startsWith('/api/policies')) {
+        return Promise.resolve({ data: { policies: ['policyA'] } } as any);
       }
       if (rawUrl.startsWith('/api/registry')) {
         return Promise.resolve({

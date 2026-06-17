@@ -3,6 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 
+vi.mock('../app/api/sharedSchemaAjv', () => ({
+  assertValidAgainstSharedSchema: vi.fn(),
+}));
+
 const writeJson = (filePath: string, payload: unknown) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');

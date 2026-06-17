@@ -3,6 +3,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "properties": {
+    "paper_facing_name": {
+      "minLength": 1,
+      "type": "string"
+    },
     "exposed_variables": {
       "$ref": "#/definitions/ExposedVariablesConfig"
     },
@@ -22,6 +26,7 @@
     }
   },
   "required": [
+    "paper_facing_name",
     "exposed_variables",
     "sampling_rate_hz",
     "end_time_input_s",
@@ -126,26 +131,20 @@
         "impulse_like": {
           "$ref": "#/definitions/ImpulseLikeDetectabilityConfig"
         },
-        "signal_to_noise_ratio_db_thresholds": {
+        "RMS_thresholds": {
           "additionalProperties": {
-            "$ref": "#/definitions/SignalToNoiseRatioThresholdPair"
+            "minimum": 0,
+            "type": "number"
           },
           "type": "object"
         }
       },
       "required": [
         "continuous",
-        "impulse_like"
+        "impulse_like",
+        "RMS_thresholds"
       ],
       "type": "object"
-    },
-    "SignalToNoiseRatioThresholdPair": {
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2,
-      "type": "array"
     },
     "IntervalRange": {
       "items": {

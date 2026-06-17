@@ -1,5 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import {
+  modelDir,
+  modelArtifactPath,
+  modelRunsDir,
+  modelsRoot,
+  tsenvModelDir,
+} from './modelExplorerPaths';
 
 export type RunDataSource = 'runs' | 'tsenv';
 export type RunDataFormat = 'parquet' | 'csv';
@@ -12,19 +19,14 @@ export type ResolvedRunDataFile = {
   filePath: string;
 };
 
-const configuredRunsDirName = () => {
-  const value = String(process.env.WEB_MODEL_EXPLORER_RUNS_DIR_NAME ?? '').trim();
-  return value || 'runs';
-};
-
 export const configuredModelArtifactRoot = (repoRoot: string, model: string) =>
-  path.join(repoRoot, 'models', 'simulink', model, configuredRunsDirName());
+  modelRunsDir(model, repoRoot);
 
 export const configuredModelArtifactPath = (
   repoRoot: string,
   model: string,
   filename: string,
-) => path.join(configuredModelArtifactRoot(repoRoot, model), filename);
+) => modelArtifactPath(model, filename, repoRoot);
 
 const isDirectory = (filePath: string) => {
   try {
@@ -42,6 +44,34 @@ const readDirNames = (dirPath: string): string[] => {
   } catch {
     return [];
   }
+};
+
+const runIdExistsInPolicy = (planDir: string, runId: string): boolean => {
+  const nodesPath = path.join(planDir, 'run_nodes.jsonl');
+  if (!fs.existsSync(nodesPath)) return false;
+  try {
+    const lines = fs.readFileSync(nodesPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const payload = JSON.parse(trimmed);
+      if (String(payload?.run_id || '').trim() === runId) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+const locateRunPolicy = (repoRoot: string, model: string, runId: string): string | null => {
+  const plansRoot = path.join(modelDir(model, repoRoot), 'plans');
+  const policies = readDirNames(plansRoot).filter((name) =>
+    isDirectory(path.join(plansRoot, name))
+  );
+  for (const policy of policies.sort()) {
+    if (runIdExistsInPolicy(path.join(plansRoot, policy), runId)) return policy;
+  }
+  return null;
 };
 
 const addRunArtifacts = (runsDir: string, out: Set<string>) => {
@@ -78,7 +108,7 @@ export function listRunDataIdsForModel(params: {
   const { repoRoot, model } = params;
   const out = new Set<string>();
   addRunArtifacts(configuredModelArtifactRoot(repoRoot, model), out);
-  addTsenvDataframes(path.join(repoRoot, 'tsENV_questions', model, 'dataframes'), out);
+  addTsenvDataframes(path.join(tsenvModelDir(model, repoRoot), 'dataframes'), out);
   return Array.from(out).sort();
 }
 
@@ -101,7 +131,7 @@ export function resolveRunDataFile(params: {
     return { model, runId, source: 'runs', format: 'csv', filePath: csvPath };
   }
 
-  const tsenvParquetPath = path.join(repoRoot, 'tsENV_questions', model, 'dataframes', `${runId}.parquet`);
+  const tsenvParquetPath = path.join(tsenvModelDir(model, repoRoot), 'dataframes', `${runId}.parquet`);
   if (fs.existsSync(tsenvParquetPath)) {
     return { model, runId, source: 'tsenv', format: 'parquet', filePath: tsenvParquetPath };
   }
@@ -112,17 +142,17 @@ export function resolveRunDataFile(params: {
 export function locateRunModel(params: {
   repoRoot: string;
   runId: string;
-}): { model: string; runId: string } | null {
+}): { model: string; policy: string | null; runId: string } | null {
   const { repoRoot } = params;
   const runId = String(params.runId || '').trim();
   if (!runId) return null;
-  const modelsRoot = path.join(repoRoot, 'models', 'simulink');
-  const modelNames = readDirNames(modelsRoot).filter((name) =>
-    isDirectory(path.join(modelsRoot, name))
+  const root = modelsRoot(repoRoot);
+  const modelNames = readDirNames(root).filter((name) =>
+    isDirectory(path.join(root, name))
   );
   for (const model of modelNames) {
     const found = resolveRunDataFile({ repoRoot, model, runId });
-    if (found) return { model, runId };
+    if (found) return { model, policy: locateRunPolicy(repoRoot, model, runId), runId };
   }
   return null;
 }

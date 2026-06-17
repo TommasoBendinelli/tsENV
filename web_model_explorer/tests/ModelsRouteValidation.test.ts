@@ -2,11 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import {
-  computeChildParametersHash,
-  computeParametersHash,
-  computeTime0BaselineHash,
-} from '../app/api/modelRunSpecHashes';
 
 const writeJson = (filePath: string, payload: unknown) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -16,6 +11,11 @@ const writeJson = (filePath: string, payload: unknown) => {
 const touch = (filePath: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '', 'utf8');
+};
+
+const writeJsonl = (filePath: string, rows: unknown[]) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8');
 };
 
 const createFixture = () => {
@@ -36,29 +36,20 @@ const createFixture = () => {
   writeJson(path.join(modelDir, 'description_levels.json'), {});
   writeJson(path.join(modelDir, 'experiment_config.json'), {});
 
-  const baselineUuid = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-  const childUuid = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-  const time0Uuid = 'cccccccccccccccccccccccccccccccc';
-  const interventionTime = 2;
-  const baselineParameters = { mass: 1 };
-  const childParameters = { mass: 4 };
-  const baselineHash = computeParametersHash(baselineParameters);
-  const childHash = computeChildParametersHash(baselineHash, childParameters, interventionTime);
-  writeJson(path.join(modelDir, 'model_run_specs.json'), {
-    [baselineUuid]: {
-      baseline_parameters: baselineParameters,
-      baseline_parameters_hash: baselineHash,
-      children: {
-        [childUuid]: {
-          intervention_time: interventionTime,
-          parameters: childParameters,
-          parameter_hash: childHash,
-          time0_baseline_uuid: time0Uuid,
-          time0_baseline_hash: computeTime0BaselineHash(childHash),
-        },
+  writeJsonl(path.join(modelDir, 'plans', 'policy_a', 'run_nodes.jsonl'), [
+    {
+      run_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      family_id: 'fam_a',
+      kind: 'baseline',
+      recipe_hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      recipe: {
+        model: 'ModelA',
+        baseline_parameters: { mass: 1 },
+        intervention: { parameter: null, time: null, value: null },
       },
     },
-  });
+  ]);
+  writeJsonl(path.join(modelDir, 'plans', 'policy_a', 'run_edges.jsonl'), []);
 
   return { fakeWebRoot, modelDir };
 };
@@ -68,12 +59,9 @@ describe('/api/models validation', () => {
     vi.resetModules();
   });
 
-  test('returns stale model_run_specs validation warnings for old hashes', async () => {
+  test('returns plan validation warnings when resolved plans are missing', async () => {
     const { fakeWebRoot, modelDir } = createFixture();
-    const specsPath = path.join(modelDir, 'model_run_specs.json');
-    const specs = JSON.parse(fs.readFileSync(specsPath, 'utf8'));
-    specs.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.baseline_parameters.mass = 3;
-    writeJson(specsPath, specs);
+    fs.rmSync(path.join(modelDir, 'plans'), { recursive: true, force: true });
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
 
     const { GET } = await import('../app/api/models/route');
@@ -83,11 +71,11 @@ describe('/api/models validation', () => {
     expect(res.status).toBe(200);
     expect(body.models).toEqual(['ModelA']);
     expect(body.validation.ModelA.ok).toBe(false);
-    expect(body.validation.ModelA.reasons.join('\n')).toContain('model_run_specs.json appears stale');
+    expect(body.validation.ModelA.reasons.join('\n')).toContain('plans/<policy_id>/run_nodes.jsonl');
     cwdSpy.mockRestore();
   });
 
-  test('does not add stale model_run_specs warnings when hashes match', async () => {
+  test('does not add plan warnings when a resolved plan exists', async () => {
     const { fakeWebRoot } = createFixture();
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeWebRoot);
 

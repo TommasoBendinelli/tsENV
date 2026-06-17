@@ -4,6 +4,7 @@ export type ParsedDeepLink = {
   rawRunId: string | null;
   rawComparatorRunId: string | null;
   rawModelId: string | null;
+  rawPolicyId: string | null;
   compareMode: DeepLinkCompareMode;
   noiseProfile: 'none' | 'low' | 'high' | null;
   noiseSeed: number | null;
@@ -31,6 +32,7 @@ export function parseDeepLinkFromSearch(search: string): ParsedDeepLink {
     sp.get('run2') || sp.get('compare_run') || ''
   ).trim() || null;
   const rawModelId = String(sp.get('model') || '').trim() || null;
+  const rawPolicyId = String(sp.get('policy') || '').trim() || null;
   const noiseProfile = parseNoiseProfile();
   const noiseSeed = parseOptionalInteger('noise_seed');
   const hasCompareParam = sp.has('compare');
@@ -56,6 +58,7 @@ export function parseDeepLinkFromSearch(search: string): ParsedDeepLink {
     rawRunId,
     rawComparatorRunId,
     rawModelId,
+    rawPolicyId,
     compareMode,
     noiseProfile,
     noiseSeed,

@@ -26,6 +26,6 @@ describe('/api/locate-run tsENV fallback', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ model: 'ModelB', run: 'child123', found: true });
+    expect(body).toEqual({ model: 'ModelB', policy: null, run: 'child123', found: true });
   });
 });
