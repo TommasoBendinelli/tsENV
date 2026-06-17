@@ -1,0 +1,15 @@
+name: Publish submission
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-submission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Submission publication is not implemented yet
+        run: |
+          echo "::error::Submission publication workflow scaffold exists, but accepted-submission publication is not implemented yet."
+          echo "Implement the maintainer publication step, upload accepted artifacts to Hugging Face, then dispatch tsenv.github.io deploy.yml."
+          exit 1

@@ -1,0 +1,18 @@
+name: Validate submission
+
+on:
+  pull_request:
+    paths:
+      - "submissions/**"
+      - ".github/workflows/validate-submission.yml"
+
+jobs:
+  validate-submission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Submission validation is not implemented yet
+        run: |
+          echo "::error::Submission validation workflow scaffold exists, but the public submission validator is not implemented yet."
+          echo "Implement validate_submission.py and wire this workflow before accepting public submission pull requests."
+          exit 1
